@@ -119,6 +119,7 @@ static dtmf_err_t generate_wave(buffer_t *buffer, const char *path)
 	sfinfo.format = SF_FORMAT_WAV | SF_ENDIAN_FILE | SF_FORMAT_FLOAT;
 	sfinfo.frames = buffer->len;
 	sfinfo.channels = 1;
+	sfinfo.samplerate = SAMPLE_RATE;
 
 	SNDFILE *outfile = sf_open(path, SFM_WRITE, &sfinfo);
 	if (!outfile) {
