@@ -44,7 +44,6 @@ static uint32_t row_freq(uint8_t row);
 static uint32_t col_freq(uint8_t col);
 static bool is_char_valid(char c);
 static int encode_internal(buffer_t *buffer, const char *value);
-static dtmf_err_t generate_wave(buffer_t *buffer, const char *path);
 
 bool dtmf_is_valid(const char *value)
 {
@@ -111,28 +110,6 @@ static int encode_internal(buffer_t *buffer, const char *value)
 		}
 		last_btn = btn;
 	}
-	return DTMF_OK;
-}
-static dtmf_err_t generate_wave(buffer_t *buffer, const char *path)
-{
-	SF_INFO sfinfo;
-	sfinfo.format = SF_FORMAT_WAV | SF_ENDIAN_FILE | SF_FORMAT_FLOAT;
-	sfinfo.frames = buffer->len;
-	sfinfo.channels = 1;
-	sfinfo.samplerate = SAMPLE_RATE;
-
-	SNDFILE *outfile = sf_open(path, SFM_WRITE, &sfinfo);
-	if (!outfile) {
-		fprintf(stderr,
-			"Erreur: Impossible de créer le fichier '%s': %s\n",
-			path, sf_strerror(NULL));
-
-		return -1;
-	}
-
-	sf_writef_float(outfile, buffer->data, buffer->len);
-	sf_close(outfile);
-	buffer_terminate(buffer);
 	return DTMF_OK;
 }
 
