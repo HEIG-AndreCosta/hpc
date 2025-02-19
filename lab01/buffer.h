@@ -4,14 +4,14 @@
 
 #include <stddef.h>
 typedef struct {
-	double *data;
+	float *data;
 	size_t capacity;
 	size_t len;
 
 } buffer_t;
 
 int buffer_init(buffer_t *buffer, size_t capacity);
-int buffer_push(buffer_t *buffer, double val);
+int buffer_push(buffer_t *buffer, float val);
 void buffer_terminate(buffer_t *buffer);
 
 #endif
