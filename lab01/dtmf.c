@@ -45,6 +45,19 @@ static uint32_t col_freq(uint8_t col);
 static bool is_char_valid(char c);
 static int encode_internal(buffer_t *buffer, const char *value);
 
+const char *dtmf_err_to_string(dtmf_err_t err)
+{
+	switch (err) {
+	case DTMF_OK:
+		return "dtmf ok";
+	case DTMF_INVALID_ENCODING_STRING:
+		return "dtmf invalid encoding string";
+	case DTMF_NO_MEMORY:
+		return "dtmf no memory";
+	}
+	return "dtmf unknown error";
+}
+
 bool dtmf_is_valid(const char *value)
 {
 	assert(value);
@@ -56,27 +69,26 @@ bool dtmf_is_valid(const char *value)
 	return true;
 }
 
-dtmf_err_t dtmf_encode(const char *value, const char *out_path)
+dtmf_err_t dtmf_encode(dtmf_encode_t *dtmf, const char *value)
 {
 	if (!dtmf_is_valid(value)) {
 		return DTMF_INVALID_ENCODING_STRING;
 	}
-	buffer_t buffer;
 
-	printf("Allocating Memory\n");
-	int err = buffer_init(&buffer, strlen(value) * CHAR_SOUND_SAMPLES *
-					       sizeof(float));
+	int err =
+		buffer_init(&dtmf->buffer,
+			    strlen(value) * CHAR_SOUND_SAMPLES * sizeof(float));
 	if (err < 0) {
 		return DTMF_NO_MEMORY;
 	}
-	printf("Encoding\n");
-	err = (int)encode_internal(&buffer, value);
+	dtmf->channels = 1;
+	dtmf->sample_rate = SAMPLE_RATE;
+	return encode_internal(&dtmf->buffer, value);
+}
 
-	if (err != DTMF_OK) {
-		return err;
-	}
-	printf("Generating Wave\n");
-	return generate_wave(&buffer, out_path);
+void dtmf_terminate(dtmf_encode_t *dtmf)
+{
+	buffer_terminate(&dtmf->buffer);
 }
 
 static int encode_internal(buffer_t *buffer, const char *value)
