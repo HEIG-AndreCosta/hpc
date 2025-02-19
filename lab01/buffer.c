@@ -7,7 +7,7 @@ static int reallocate(buffer_t *buffer);
 
 int buffer_init(buffer_t *buffer, size_t capacity)
 {
-	double *ptr = malloc(sizeof(*ptr) * capacity);
+	float *ptr = malloc(sizeof(*ptr) * capacity);
 	if (!ptr) {
 		return -1;
 	}
@@ -16,7 +16,7 @@ int buffer_init(buffer_t *buffer, size_t capacity)
 	buffer->len = 0;
 	return 0;
 }
-int buffer_push(buffer_t *buffer, double val)
+int buffer_push(buffer_t *buffer, float val)
 {
 	if (buffer->len >= buffer->capacity) {
 		if (reallocate(buffer) < 0) {
@@ -38,7 +38,7 @@ void buffer_terminate(buffer_t *buffer)
 static int reallocate(buffer_t *buffer)
 {
 	size_t new_capacity = buffer->capacity * 2;
-	double *ptr = realloc(buffer->data, new_capacity);
+	float *ptr = realloc(buffer->data, new_capacity);
 	if (!ptr) {
 		return -1;
 	}

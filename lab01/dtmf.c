@@ -33,7 +33,7 @@
 #define SILENCE_F1		 0
 #define SILENCE_F2		 0
 
-static double s(uint32_t a, uint32_t f1, uint32_t f2, uint32_t t);
+static float s(uint32_t a, uint32_t f1, uint32_t f2, uint32_t t);
 static int push_samples(buffer_t *buffer, uint32_t f1, uint32_t f2,
 			size_t nb_samples);
 
@@ -66,7 +66,7 @@ dtmf_err_t dtmf_encode(const char *value, const char *out_path)
 
 	printf("Allocating Memory\n");
 	int err = buffer_init(&buffer, strlen(value) * CHAR_SOUND_SAMPLES *
-					       sizeof(double));
+					       sizeof(float));
 	if (err < 0) {
 		return DTMF_NO_MEMORY;
 	}
@@ -116,7 +116,7 @@ static int encode_internal(buffer_t *buffer, const char *value)
 static dtmf_err_t generate_wave(buffer_t *buffer, const char *path)
 {
 	SF_INFO sfinfo;
-	sfinfo.format = SF_FORMAT_WAV | SF_ENDIAN_FILE | SF_FORMAT_DOUBLE;
+	sfinfo.format = SF_FORMAT_WAV | SF_ENDIAN_FILE | SF_FORMAT_FLOAT;
 	sfinfo.frames = buffer->len;
 	sfinfo.channels = 1;
 
@@ -129,7 +129,7 @@ static dtmf_err_t generate_wave(buffer_t *buffer, const char *path)
 		return -1;
 	}
 
-	sf_writef_double(outfile, buffer->data, buffer->len);
+	sf_writef_float(outfile, buffer->data, buffer->len);
 	sf_close(outfile);
 	buffer_terminate(buffer);
 	return DTMF_OK;
@@ -147,7 +147,7 @@ static int push_samples(buffer_t *buffer, uint32_t f1, uint32_t f2,
 	return 0;
 }
 
-static double s(uint32_t a, uint32_t f1, uint32_t f2, uint32_t t)
+static float s(uint32_t a, uint32_t f1, uint32_t f2, uint32_t t)
 {
 	return a * (sin(2 * M_PI * f1 * t) + sin(2 * M_PI * f2 * t));
 }
