@@ -33,7 +33,7 @@
 #define SILENCE_F1		 0
 #define SILENCE_F2		 0
 
-static float s(uint32_t a, uint32_t f1, uint32_t f2, uint32_t t);
+static float s(float a, uint32_t f1, uint32_t f2, uint32_t t);
 static int push_samples(buffer_t *buffer, uint32_t f1, uint32_t f2,
 			size_t nb_samples);
 
@@ -148,9 +148,10 @@ static int push_samples(buffer_t *buffer, uint32_t f1, uint32_t f2,
 	return 0;
 }
 
-static float s(uint32_t a, uint32_t f1, uint32_t f2, uint32_t t)
+static float s(float a, uint32_t f1, uint32_t f2, uint32_t t)
 {
-	return a * (sin(2 * M_PI * f1 * t) + sin(2 * M_PI * f2 * t));
+	return a * (sin(2. * M_PI * f1 * t / SAMPLE_RATE) +
+		    sin(2. * M_PI * f2 * t / SAMPLE_RATE));
 }
 
 static bool is_char_valid(char c)
