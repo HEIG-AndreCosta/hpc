@@ -33,6 +33,10 @@
 #define SILENCE_F1		 0
 #define SILENCE_F2		 0
 
+const char *button_characters[11] = { "1",     "2abc",	"3def",	 "4ghi",
+				      "5jkl",  "6mno",	"7pqrs", "8tuv",
+				      "9wxyz", "#.!?,", "0 " };
+
 static float s(float a, uint32_t f1, uint32_t f2, uint32_t t);
 static int push_samples(buffer_t *buffer, uint32_t f1, uint32_t f2,
 			size_t nb_samples);
@@ -44,6 +48,7 @@ static uint32_t row_freq(uint8_t row);
 static uint32_t col_freq(uint8_t col);
 static bool is_char_valid(char c);
 static int encode_internal(buffer_t *buffer, const char *value);
+static size_t get_times_to_push(size_t btn_nr, char value);
 
 const char *dtmf_err_to_string(dtmf_err_t err)
 {
@@ -93,34 +98,37 @@ void dtmf_terminate(dtmf_encode_t *dtmf)
 
 static int encode_internal(buffer_t *buffer, const char *value)
 {
-	uint32_t last_btn;
 	for (size_t i = 0; i < strlen(value); ++i) {
 		const uint8_t row = char_row(value[i]);
 		const uint8_t col = char_col(value[i]);
 		const uint32_t f1 = row_freq(row);
 		const uint32_t f2 = col_freq(col);
-		const uint32_t btn = row * 3 + col;
+		const size_t btn = row * 3 + col;
+		const size_t times_to_push = get_times_to_push(btn, value[i]);
 
 		int err;
 		if (i > 0) {
-			if (btn == last_btn) {
-				err = push_samples(buffer, SILENCE_F1,
-						   SILENCE_F2,
-						   SAME_CHAR_PAUSE_SAMPLES);
-			} else {
-				err = push_samples(buffer, SILENCE_F1,
-						   SILENCE_F2,
-						   CHAR_PAUSE_SAMPLES);
-			}
+			err = push_samples(buffer, SILENCE_F1, SILENCE_F2,
+					   CHAR_PAUSE_SAMPLES);
 			if (err < 0) {
 				return DTMF_NO_MEMORY;
 			}
 		}
-		err = push_samples(buffer, f1, f2, CHAR_SOUND_SAMPLES);
-		if (err < 0) {
-			return DTMF_NO_MEMORY;
+		for (size_t j = 0; j < times_to_push; ++j) {
+			if (j > 0) {
+				err = push_samples(buffer, SILENCE_F1,
+						   SILENCE_F2,
+						   SAME_CHAR_PAUSE_SAMPLES);
+				if (err < 0) {
+					return DTMF_NO_MEMORY;
+				}
+			}
+
+			err = push_samples(buffer, f1, f2, CHAR_SOUND_SAMPLES);
+			if (err < 0) {
+				return DTMF_NO_MEMORY;
+			}
 		}
-		last_btn = btn;
 	}
 	return DTMF_OK;
 }
@@ -146,6 +154,18 @@ static float s(float a, uint32_t f1, uint32_t f2, uint32_t t)
 static bool is_char_valid(char c)
 {
 	return islower(c) || isdigit(c) || strchr(SPECIAL_CHARS, c) != NULL;
+}
+static size_t get_times_to_push(size_t btn_nr, char value)
+{
+	assert(btn_nr <
+	       sizeof(button_characters) / sizeof(button_characters[0]));
+
+	const char *char_btn_position =
+		strchr(button_characters[btn_nr], value);
+
+	assert(char_btn_position);
+
+	return char_btn_position - button_characters[btn_nr] + 1;
 }
 
 static uint8_t char_row(char c)
