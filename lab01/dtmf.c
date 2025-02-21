@@ -35,6 +35,9 @@
 #define SILENCE_F1		 0
 #define SILENCE_F2		 0
 
+#define MIN_FREQ		 697
+#define MAX_FREQ		 1500
+
 const char *button_characters[11] = { "1",     "2abc",	"3def",	 "4ghi",
 				      "5jkl",  "6mno",	"7pqrs", "8tuv",
 				      "9wxyz", "#.!?,", "0 " };
@@ -51,6 +54,11 @@ static uint32_t col_freq(uint8_t col);
 static bool is_char_valid(char c);
 static int encode_internal(buffer_t *buffer, const char *value);
 static size_t get_times_to_push(size_t btn_nr, char value);
+
+static uint8_t closest_row(uint32_t freq);
+static uint8_t closest_col(uint32_t freq);
+static uint8_t closest(const uint16_t *values, size_t len, uint32_t freq);
+static bool is_valid_frequency(uint32_t freq);
 
 const char *dtmf_err_to_string(dtmf_err_t err)
 {
@@ -95,9 +103,9 @@ dtmf_err_t dtmf_encode(dtmf_t *dtmf, const char *value)
 
 char *dtmf_decode(dtmf_t *dtmf)
 {
-	size_t len = dtmf->buffer.len;
-	if (!is_power_of_2(dtmf->buffer.len)) {
-		len = align_to_power_of_2(dtmf->buffer.len);
+	size_t len = SAME_CHAR_PAUSE_SAMPLES;
+	if (!is_power_of_2(len)) {
+		len = align_to_power_of_2(len);
 	}
 
 	cplx_t *buffer = calloc(len, sizeof(*buffer));
@@ -107,7 +115,7 @@ char *dtmf_decode(dtmf_t *dtmf)
 	}
 
 	printf("Converting to cplx_t\n");
-	float_to_cplx_t(dtmf->buffer.data, buffer, dtmf->buffer.len);
+	float_to_cplx_t(dtmf->buffer.data, buffer, len);
 	printf("Running fft\n");
 	int err = fft(buffer, len);
 	if (err != 0) {
@@ -115,7 +123,27 @@ char *dtmf_decode(dtmf_t *dtmf)
 		return NULL;
 	}
 	printf("Extracting frequencies\n");
-	extract_frequencies(buffer, len / 2, dtmf->sample_rate);
+	uint32_t f1 = 0, f2 = 0;
+	for (size_t i = 0; i + len < dtmf->buffer.len;
+	     i += CHAR_SOUND_SAMPLES) {
+		extract_frequencies(buffer + i, len, dtmf->sample_rate, &f1,
+				    &f2);
+		if (!(is_valid_frequency(f1) && is_valid_frequency(f2))) {
+			continue;
+		}
+		uint8_t row, col;
+		if (f1 < 1000) {
+			row = closest_row(f1);
+			col = closest_col(f2);
+		} else {
+			row = closest_row(f2);
+			col = closest_col(f1);
+		}
+		const size_t btn = row * 3 + col;
+		printf("btn %zu\n", btn);
+	}
+	printf("Extracted %d %d from %zu/%zu samples\n", f1, f2, len,
+	       dtmf->buffer.len);
 	return NULL;
 }
 
@@ -124,6 +152,31 @@ void dtmf_terminate(dtmf_t *dtmf)
 	buffer_terminate(&dtmf->buffer);
 }
 
+static uint8_t closest(const uint16_t *values, size_t len, uint32_t freq)
+{
+	int diff = 0xFFFF;
+	uint8_t closest = 0;
+	for (size_t i = 0; i < len; ++i) {
+		const int curr_diff = abs(values[i] - (int)freq);
+		if (curr_diff < diff) {
+			closest = i;
+			diff = curr_diff;
+		}
+	}
+	return closest;
+}
+static uint8_t closest_row(uint32_t freq)
+{
+	return closest(ROW_FREQ, sizeof(ROW_FREQ) / sizeof(ROW_FREQ[0]), freq);
+}
+static uint8_t closest_col(uint32_t freq)
+{
+	return closest(COL_FREQ, sizeof(COL_FREQ) / sizeof(COL_FREQ[0]), freq);
+}
+static bool is_valid_frequency(uint32_t freq)
+{
+	return freq > 650 || freq < 1500;
+}
 static int encode_internal(buffer_t *buffer, const char *value)
 {
 	for (size_t i = 0; i < strlen(value); ++i) {
