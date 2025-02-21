@@ -36,15 +36,24 @@ void float_to_cplx_t(float *in, cplx_t *out, size_t n)
 		out[i] = in[i] + 0. * I;
 	}
 }
-void extract_frequencies(const cplx_t *buf, size_t n, double sample_rate)
+void extract_frequencies(const cplx_t *buf, size_t n, double sample_rate,
+			 uint32_t *f1, uint32_t *f2)
 {
-	for (size_t i = 0; i < n; ++i) {
-		double magnitude = cabs(buf[i]);
-		if (magnitude > 1) {
-			double frequency =
-				(i * sample_rate) / n; // Compute frequency
-			printf("Freq: %g Hz, Magnitude: %g\n", frequency,
-			       magnitude);
+	const size_t half = n / 2;
+	double mag_f1 = 0;
+	double mag_f2 = 0;
+
+	for (size_t i = 0; i < half; ++i) {
+		const double magnitude = cabs(buf[i]) / n;
+		const double frequency = (i * sample_rate) / n;
+		if (magnitude > mag_f1) {
+			mag_f2 = mag_f1;
+			mag_f1 = magnitude;
+			*f2 = *f1;
+			*f1 = frequency;
+		} else if (magnitude > mag_f2) {
+			mag_f2 = magnitude;
+			*f2 = frequency;
 		}
 	}
 }
