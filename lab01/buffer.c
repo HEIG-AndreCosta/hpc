@@ -16,6 +16,14 @@ int buffer_init(buffer_t *buffer, size_t capacity)
 	buffer->len = 0;
 	return 0;
 }
+
+void buffer_construct(buffer_t *buffer, float *data, size_t capacity,
+		      size_t len)
+{
+	buffer->data = data;
+	buffer->capacity = capacity;
+	buffer->len = len;
+}
 int buffer_push(buffer_t *buffer, float val)
 {
 	if (buffer->len >= buffer->capacity) {
