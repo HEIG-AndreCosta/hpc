@@ -1,3 +1,4 @@
+#include "buffer.h"
 #include "dtmf.h"
 #include "file.h"
 #include "wave.h"
@@ -23,7 +24,7 @@ int main(int argc, char *argv[])
 			print_usage(argv[0]);
 			return 1;
 		}
-		dtmf_encode_t encoder;
+		dtmf_t encoder;
 		const char *content = file_read(argv[2]);
 		if (!content) {
 			return EXIT_FAILURE;
@@ -42,6 +43,29 @@ int main(int argc, char *argv[])
 		return err != 0;
 
 	} else if (strcmp(argv[1], "decode") == 0) {
+		dtmf_t decoder;
+		double sample_rate;
+		size_t len;
+		float *data = wave_read(argv[2], &len, &sample_rate);
+		if (!data) {
+			return EXIT_FAILURE;
+		}
+
+		buffer_construct(&decoder.buffer, data, len, len);
+		decoder.sample_rate = sample_rate;
+		decoder.channels = 1;
+
+		char *value = dtmf_decode(&decoder);
+		if (!value) {
+			printf("Failed to decode\n");
+			return EXIT_FAILURE;
+		}
+
+		printf("Decoded: %s", value);
+		free(value);
+		dtmf_terminate(&decoder);
+		return EXIT_SUCCESS;
+
 	} else {
 		print_usage(argv[0]);
 		return 1;
