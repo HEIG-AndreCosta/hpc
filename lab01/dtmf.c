@@ -74,7 +74,7 @@ bool dtmf_is_valid(const char *value)
 	return true;
 }
 
-dtmf_err_t dtmf_encode(dtmf_encode_t *dtmf, const char *value)
+dtmf_err_t dtmf_encode(dtmf_t *dtmf, const char *value)
 {
 	if (!dtmf_is_valid(value)) {
 		return DTMF_INVALID_ENCODING_STRING;
@@ -91,7 +91,7 @@ dtmf_err_t dtmf_encode(dtmf_encode_t *dtmf, const char *value)
 	return encode_internal(&dtmf->buffer, value);
 }
 
-void dtmf_terminate(dtmf_encode_t *dtmf)
+void dtmf_terminate(dtmf_t *dtmf)
 {
 	buffer_terminate(&dtmf->buffer);
 }

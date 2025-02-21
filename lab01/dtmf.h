@@ -21,11 +21,13 @@ typedef struct {
 	buffer_t buffer;
 	uint32_t sample_rate;
 	uint32_t channels;
-} dtmf_encode_t;
+} dtmf_t;
 
 bool dtmf_is_valid(const char *value);
-dtmf_err_t dtmf_encode(dtmf_encode_t *dtmf, const char *value);
+
+dtmf_err_t dtmf_encode(dtmf_t *dtmf, const char *value);
+
 const char *dtmf_err_to_string(dtmf_err_t err);
-void dtmf_terminate(dtmf_encode_t *dtmf);
+void dtmf_terminate(dtmf_t *dtmf);
 
 #endif
