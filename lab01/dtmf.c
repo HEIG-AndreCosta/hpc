@@ -114,20 +114,18 @@ char *dtmf_decode(dtmf_t *dtmf)
 		return NULL;
 	}
 
-	printf("Converting to cplx_t\n");
-	float_to_cplx_t(dtmf->buffer.data, buffer, len);
-	printf("Running fft\n");
-	int err = fft(buffer, len);
-	if (err != 0) {
-		printf("Error running fft\n");
-		return NULL;
-	}
-	printf("Extracting frequencies\n");
 	uint32_t f1 = 0, f2 = 0;
-	for (size_t i = 0; i + len < dtmf->buffer.len;
+	for (size_t i = 0; (i + len) < dtmf->buffer.len;
 	     i += CHAR_SOUND_SAMPLES) {
-		extract_frequencies(buffer + i, len, dtmf->sample_rate, &f1,
-				    &f2);
+		float_to_cplx_t(dtmf->buffer.data + i, buffer, len);
+
+		int err = fft(buffer, len);
+		if (err != 0) {
+			printf("Error running fft\n");
+			return NULL;
+		}
+		extract_frequencies(buffer, len, dtmf->sample_rate, &f1, &f2);
+
 		if (!(is_valid_frequency(f1) && is_valid_frequency(f2))) {
 			continue;
 		}
