@@ -1,6 +1,8 @@
 #include "dtmf.h"
 
 #include "buffer.h"
+#include "fft.h"
+#include "utils.h"
 #include <assert.h>
 #include <math.h>
 #include <ctype.h>
@@ -89,6 +91,32 @@ dtmf_err_t dtmf_encode(dtmf_t *dtmf, const char *value)
 	dtmf->channels = 1;
 	dtmf->sample_rate = SAMPLE_RATE;
 	return encode_internal(&dtmf->buffer, value);
+}
+
+char *dtmf_decode(dtmf_t *dtmf)
+{
+	size_t len = dtmf->buffer.len;
+	if (!is_power_of_2(dtmf->buffer.len)) {
+		len = align_to_power_of_2(dtmf->buffer.len);
+	}
+
+	cplx_t *buffer = calloc(len, sizeof(*buffer));
+	if (!buffer) {
+		printf("Failed to allocate memory for decode\n");
+		return NULL;
+	}
+
+	printf("Converting to cplx_t\n");
+	float_to_cplx_t(dtmf->buffer.data, buffer, dtmf->buffer.len);
+	printf("Running fft\n");
+	int err = fft(buffer, len);
+	if (err != 0) {
+		printf("Error running fft\n");
+		return NULL;
+	}
+	printf("Extracting frequencies\n");
+	extract_frequencies(buffer, len / 2, dtmf->sample_rate);
+	return NULL;
 }
 
 void dtmf_terminate(dtmf_t *dtmf)
