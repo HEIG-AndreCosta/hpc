@@ -7,7 +7,7 @@
 #include <string.h>
 
 #include "fft.h"
-static void _fft(cplx_t *buf, cplx_t *out, size_t n, size_t step);
+static void _fft(cplx_t *buf, cplx_t *tmp, size_t n, size_t step);
 
 /*
  * Source: https://rosettacode.org/wiki/Fast_Fourier_transform#C
@@ -19,13 +19,14 @@ int fft(cplx_t *buf, size_t n)
 		return 1;
 	}
 
-	cplx_t *tmp = (cplx_t *)calloc(n, sizeof(cplx_t));
+	cplx_t *tmp = (cplx_t *)malloc(n * sizeof(cplx_t));
 	if (!tmp) {
 		return 1;
 	}
 
 	memcpy(tmp, buf, n * sizeof(*buf));
 	_fft(buf, tmp, n, 1);
+	free(tmp);
 	return 0;
 }
 
@@ -53,12 +54,22 @@ void extract_frequencies(const cplx_t *buf, size_t n, double sample_rate)
  */
 static void _fft(cplx_t *buf, cplx_t *tmp, size_t n, size_t step)
 {
-	if (step >= n) {
+	if (n < 2) {
 		return;
 	}
-	for (size_t i = 0; i < n; i += 2 * step) {
-		const cplx_t t = cexp(-I * M_PI * i / n) * tmp[i + step];
-		buf[i / 2] = tmp[i] + t;
-		buf[(i + n) / 2] = tmp[i] - t;
+	const size_t half = n / 2;
+
+	for (size_t i = 0; i < half; ++i) {
+		tmp[i] = buf[2 * i];
+		tmp[i + half] = buf[2 * i + 1];
+	}
+
+	_fft(tmp, buf, half, step * 2);
+	_fft(tmp + half, buf + half, half, step * 2);
+
+	for (size_t i = 0; i < half; ++i) {
+		const cplx_t t = cexp(-2.0 * I * M_PI * i / n) * tmp[i + half];
+		buf[i] = tmp[i] + t;
+		buf[i + half] = tmp[i] - t;
 	}
 }
