@@ -212,7 +212,12 @@ char *dtmf_decode(dtmf_t *dtmf)
 		i += samples_to_skip_on_press;
 	}
 
-	char terminator = '\0';
+	/* If the file ended without a silence, add the last button */
+	if (consecutive_presses != 0) {
+		const char decoded = decode(btn, consecutive_presses);
+		buffer_push(&result, &decoded);
+	}
+	const char terminator = '\0';
 	buffer_push(&result, &terminator);
 	return (char *)result.data;
 }
