@@ -229,6 +229,9 @@ void dtmf_terminate(dtmf_t *dtmf)
 
 static char decode(size_t button, size_t presses)
 {
+	assert(button <
+	       sizeof(button_characters) / sizeof(button_characters[0]));
+
 	return button_characters[button][(presses - 1) %
 					 strlen(button_characters[button])];
 }
