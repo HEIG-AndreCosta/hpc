@@ -45,9 +45,10 @@ const char *button_characters[NB_BUTTONS] = { "1",     "abc2",	"def3",	 "ghi4",
 					      "jkl5",  "mno6",	"pqrs7", "tuv8",
 					      "wxyz9", "#.!?,", " 0" };
 #endif
-static float s(float a, uint32_t f1, uint32_t f2, uint32_t t);
+static float s(float a, uint32_t f1, uint32_t f2, uint32_t t,
+	       uint32_t sample_rate);
 static int push_samples(buffer_t *buffer, uint32_t f1, uint32_t f2,
-			size_t nb_samples);
+			size_t nb_samples, uint32_t sample_rate);
 
 static uint8_t char_row(char c);
 static uint8_t char_col(char c);
@@ -110,6 +111,8 @@ bool dtmf_is_valid(const char *value)
 	assert(value);
 	for (size_t i = 0; i < strlen(value); ++i) {
 		if (!is_char_valid(value[i])) {
+			printf("Found invalid character at position %zu (%c)\n",
+			       i + 1, value[i]);
 			return false;
 		}
 	}
@@ -121,16 +124,17 @@ dtmf_err_t dtmf_encode(dtmf_t *dtmf, const char *value)
 	if (!dtmf_is_valid(value)) {
 		return DTMF_INVALID_ENCODING_STRING;
 	}
+	dtmf->channels = 1;
+	dtmf->sample_rate = ENCODE_SAMPLE_RATE;
 
-	int err = buffer_init(&dtmf->buffer,
-			      strlen(value) *
-				      char_sound_samples(dtmf->sample_rate),
-			      sizeof(float));
+	const size_t initial_capacity =
+		strlen(value) * char_sound_samples(dtmf->sample_rate);
+
+	int err = buffer_init(&dtmf->buffer, initial_capacity, sizeof(float));
+
 	if (err < 0) {
 		return DTMF_NO_MEMORY;
 	}
-	dtmf->channels = 1;
-	dtmf->sample_rate = SAMPLE_RATE;
 	return encode_internal(&dtmf->buffer, value, dtmf->sample_rate);
 }
 
@@ -167,7 +171,9 @@ char *dtmf_decode(dtmf_t *dtmf)
 		float amplitude =
 			get_amplitude((float *)dtmf->buffer.data + i, len);
 		if (i == 0) {
-			btn_amplitude = amplitude - 0.1;
+			btn_amplitude = amplitude - (amplitude / 10);
+			printf("Using %g as silence amplitude threshold\n",
+			       btn_amplitude);
 		} else if (amplitude < btn_amplitude) {
 			const char decoded = decode(btn, consecutive_presses);
 			buffer_push(&result, &decoded);
@@ -276,7 +282,8 @@ static int encode_internal(buffer_t *buffer, const char *value,
 		int err;
 		if (i > 0) {
 			err = push_samples(buffer, SILENCE_F1, SILENCE_F2,
-					   nb_samples_on_char_pause);
+					   nb_samples_on_char_pause,
+					   sample_rate);
 			if (err < 0) {
 				return DTMF_NO_MEMORY;
 			}
@@ -285,13 +292,15 @@ static int encode_internal(buffer_t *buffer, const char *value,
 			if (j > 0) {
 				err = push_samples(
 					buffer, SILENCE_F1, SILENCE_F2,
-					nb_samples_on_same_char_pause);
+					nb_samples_on_same_char_pause,
+					sample_rate);
 				if (err < 0) {
 					return DTMF_NO_MEMORY;
 				}
 			}
 
-			err = push_samples(buffer, f1, f2, nb_samples_on_char);
+			err = push_samples(buffer, f1, f2, nb_samples_on_char,
+					   sample_rate);
 			if (err < 0) {
 				return DTMF_NO_MEMORY;
 			}
@@ -301,10 +310,10 @@ static int encode_internal(buffer_t *buffer, const char *value,
 }
 
 static int push_samples(buffer_t *buffer, uint32_t f1, uint32_t f2,
-			size_t nb_samples)
+			size_t nb_samples, uint32_t sample_rate)
 {
 	for (size_t i = 0; i < nb_samples; ++i) {
-		float value = s(AMPLITUDE, f1, f2, i);
+		const float value = s(AMPLITUDE, f1, f2, i, sample_rate);
 		int err = buffer_push(buffer, &value);
 		if (err < 0) {
 			return err;
@@ -313,10 +322,11 @@ static int push_samples(buffer_t *buffer, uint32_t f1, uint32_t f2,
 	return 0;
 }
 
-static float s(float a, uint32_t f1, uint32_t f2, uint32_t t)
+static float s(float a, uint32_t f1, uint32_t f2, uint32_t t,
+	       uint32_t sample_rate)
 {
-	return a * (sin(2. * M_PI * f1 * t / SAMPLE_RATE) +
-		    sin(2. * M_PI * f2 * t / SAMPLE_RATE));
+	return a * (sin(2. * M_PI * f1 * t / sample_rate) +
+		    sin(2. * M_PI * f2 * t / sample_rate));
 }
 
 static bool is_char_valid(char c)

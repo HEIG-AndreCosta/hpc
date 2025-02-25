@@ -6,7 +6,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define SAMPLE_RATE 44100
+#define ENCODE_SAMPLE_RATE 44100
 
 static const uint16_t ROW_FREQ[] = { 697, 770, 852, 941 };
 static const uint16_t COL_FREQ[] = { 1209, 1336, 1477 };
