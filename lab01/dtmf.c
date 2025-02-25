@@ -30,6 +30,7 @@
 #define AMPLITUDE		 .3
 #define SILENCE_F1		 0
 #define SILENCE_F2		 0
+#define EXTRA_PRESSES		 0
 
 #define MIN_FREQ		 697
 #define MAX_FREQ		 1500
@@ -351,7 +352,8 @@ static size_t get_times_to_push(size_t btn_nr, char value)
 
 	assert(char_btn_position);
 
-	return char_btn_position - button_characters[btn_nr] + 1;
+	const size_t index = char_btn_position - button_characters[btn_nr] + 1;
+	return index + (strlen(button_characters[btn_nr]) * EXTRA_PRESSES);
 }
 
 static uint8_t char_row(char c)
