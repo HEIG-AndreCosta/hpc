@@ -31,23 +31,30 @@
 #define CHAR_PAUSE_SAMPLES	 (CHAR_PAUSE_DURATION * SAMPLE_RATE)
 #define SAME_CHAR_PAUSE_SAMPLES	 (SAME_CHAR_PAUSE_DURATION * SAMPLE_RATE)
 
-#define AMPLITUDE		 .3
-#define SILENCE_F1		 0
-#define SILENCE_F2		 0
+#define DECODE_SKIP_SAMPLES_ON_SILENCE \
+	(CHAR_PAUSE_SAMPLES - SAME_CHAR_PAUSE_SAMPLES)
 
-#define MIN_FREQ		 697
-#define MAX_FREQ		 1500
+#define DECODE_SKIP_SAMPLES_ON_PRESS \
+	(CHAR_SOUND_SAMPLES + SAME_CHAR_PAUSE_SAMPLES)
 
-const char *button_characters[11] = { "1",     "2abc",	"3def",	 "4ghi",
-				      "5jkl",  "6mno",	"7pqrs", "8tuv",
-				      "9wxyz", "#.!?,", "0 " };
+#define AMPLITUDE  .3
+#define SILENCE_F1 0
+#define SILENCE_F2 0
 
+#define MIN_FREQ   697
+#define MAX_FREQ   1500
+#define NB_BUTTONS 11
+
+const char *button_characters[NB_BUTTONS] = { "1",     "2abc",	"3def",	 "4ghi",
+					      "5jkl",  "6mno",	"7pqrs", "8tuv",
+					      "9wxyz", "#.!?,", "0 " };
 static float s(float a, uint32_t f1, uint32_t f2, uint32_t t);
 static int push_samples(buffer_t *buffer, uint32_t f1, uint32_t f2,
 			size_t nb_samples);
 
 static uint8_t char_row(char c);
 static uint8_t char_col(char c);
+static char decode(size_t button, size_t presses);
 
 static uint32_t row_freq(uint8_t row);
 static uint32_t col_freq(uint8_t col);
@@ -55,6 +62,7 @@ static bool is_char_valid(char c);
 static int encode_internal(buffer_t *buffer, const char *value);
 static size_t get_times_to_push(size_t btn_nr, char value);
 
+static float get_amplitude(const float *buffer, size_t len);
 static uint8_t closest_row(uint32_t freq);
 static uint8_t closest_col(uint32_t freq);
 static uint8_t closest(const uint16_t *values, size_t len, uint32_t freq);
@@ -112,11 +120,33 @@ char *dtmf_decode(dtmf_t *dtmf)
 		printf("Failed to allocate memory for decode\n");
 		return NULL;
 	}
+	buffer_t result;
+	int ret = buffer_init(&result, 128, sizeof(char));
+	if (ret < 0) {
+		printf("Failed to allocate memory for decode result\n");
+		free(buffer);
+		return NULL;
+	}
 
 	uint32_t f1 = 0, f2 = 0;
-	for (size_t i = 0; (i + len) < dtmf->buffer.len;
-	     i += CHAR_SOUND_SAMPLES) {
-		float_to_cplx_t(dtmf->buffer.data + i, buffer, len);
+	float btn_amplitude = 0;
+	size_t i = 0;
+	size_t btn = 0xFF;
+	size_t consecutive_presses = 0;
+	while ((i + len) < dtmf->buffer.len) {
+		float amplitude =
+			get_amplitude((float *)dtmf->buffer.data + i, len);
+		if (i == 0) {
+			btn_amplitude = amplitude - 0.1;
+		} else if (amplitude < btn_amplitude) {
+			const char decoded = decode(btn, consecutive_presses);
+			buffer_push(&result, &decoded);
+			consecutive_presses = 0;
+			i += DECODE_SKIP_SAMPLES_ON_SILENCE;
+			continue;
+		}
+
+		float_to_cplx_t((float *)dtmf->buffer.data + i, buffer, len);
 
 		int err = fft(buffer, len);
 		if (err != 0) {
@@ -126,8 +156,13 @@ char *dtmf_decode(dtmf_t *dtmf)
 		extract_frequencies(buffer, len, dtmf->sample_rate, &f1, &f2);
 
 		if (!(is_valid_frequency(f1) && is_valid_frequency(f2))) {
+			const char decoded = decode(btn, consecutive_presses);
+			buffer_push(&result, &decoded);
+			consecutive_presses = 0;
+			i += DECODE_SKIP_SAMPLES_ON_SILENCE;
 			continue;
 		}
+
 		uint8_t row, col;
 		if (f1 < 1000) {
 			row = closest_row(f1);
@@ -136,17 +171,35 @@ char *dtmf_decode(dtmf_t *dtmf)
 			row = closest_row(f2);
 			col = closest_col(f1);
 		}
-		const size_t btn = row * 3 + col;
-		printf("btn %zu\n", btn);
+		consecutive_presses++;
+		btn = row * 3 + col;
+		i += DECODE_SKIP_SAMPLES_ON_PRESS;
 	}
 	printf("Extracted %d %d from %zu/%zu samples\n", f1, f2, len,
 	       dtmf->buffer.len);
-	return NULL;
+	return (char *)result.data;
 }
 
 void dtmf_terminate(dtmf_t *dtmf)
 {
 	buffer_terminate(&dtmf->buffer);
+}
+
+static char decode(size_t button, size_t presses)
+{
+	return button_characters[button][(presses - 1) %
+					 strlen(button_characters[button])];
+}
+static float get_amplitude(const float *buffer, size_t len)
+{
+	float amplitude = 0;
+
+	for (size_t i = 0; i < len; ++i) {
+		if (buffer[i] > amplitude) {
+			amplitude = buffer[i];
+		}
+	}
+	return amplitude;
 }
 
 static uint8_t closest(const uint16_t *values, size_t len, uint32_t freq)
