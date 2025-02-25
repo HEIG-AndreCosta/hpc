@@ -270,7 +270,7 @@ static uint8_t closest_col(uint32_t freq)
 }
 static bool is_valid_frequency(uint32_t freq)
 {
-	return freq > 650 || freq < 1500;
+	return freq > 650 && freq < 1500;
 }
 static int encode_internal(buffer_t *buffer, const char *value,
 			   uint32_t sample_rate)
