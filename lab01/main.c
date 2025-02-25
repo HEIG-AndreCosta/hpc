@@ -51,7 +51,8 @@ int main(int argc, char *argv[])
 			return EXIT_FAILURE;
 		}
 
-		buffer_construct(&decoder.buffer, data, len, len);
+		buffer_construct(&decoder.buffer, data, len, len,
+				 sizeof(*data));
 		decoder.sample_rate = sample_rate;
 		decoder.channels = 1;
 

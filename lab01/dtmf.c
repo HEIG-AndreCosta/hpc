@@ -90,9 +90,8 @@ dtmf_err_t dtmf_encode(dtmf_t *dtmf, const char *value)
 		return DTMF_INVALID_ENCODING_STRING;
 	}
 
-	int err =
-		buffer_init(&dtmf->buffer,
-			    strlen(value) * CHAR_SOUND_SAMPLES * sizeof(float));
+	int err = buffer_init(&dtmf->buffer, strlen(value) * CHAR_SOUND_SAMPLES,
+			      sizeof(float));
 	if (err < 0) {
 		return DTMF_NO_MEMORY;
 	}
@@ -216,7 +215,8 @@ static int push_samples(buffer_t *buffer, uint32_t f1, uint32_t f2,
 			size_t nb_samples)
 {
 	for (size_t i = 0; i < nb_samples; ++i) {
-		int err = buffer_push(buffer, s(AMPLITUDE, f1, f2, i));
+		float value = s(AMPLITUDE, f1, f2, i);
+		int err = buffer_push(buffer, &value);
 		if (err < 0) {
 			return err;
 		}
