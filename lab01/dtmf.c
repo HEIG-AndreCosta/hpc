@@ -35,9 +35,16 @@
 #define MAX_FREQ		 1500
 #define NB_BUTTONS		 11
 
+#if 0
 const char *button_characters[NB_BUTTONS] = { "1",     "2abc",	"3def",	 "4ghi",
 					      "5jkl",  "6mno",	"7pqrs", "8tuv",
 					      "9wxyz", "#.!?,", "0 " };
+
+#else
+const char *button_characters[NB_BUTTONS] = { "1",     "abc2",	"def3",	 "ghi4",
+					      "jkl5",  "mno6",	"pqrs7", "tuv8",
+					      "wxyz9", "#.!?,", " 0" };
+#endif
 static float s(float a, uint32_t f1, uint32_t f2, uint32_t t);
 static int push_samples(buffer_t *buffer, uint32_t f1, uint32_t f2,
 			size_t nb_samples);
