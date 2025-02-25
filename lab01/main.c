@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
 		}
 
 		printf("Decoded: %s\n", value);
-		free(value);
+
 		dtmf_terminate(&decoder);
 		return EXIT_SUCCESS;
 
