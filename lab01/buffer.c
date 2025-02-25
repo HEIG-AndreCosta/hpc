@@ -35,7 +35,8 @@ int buffer_push(buffer_t *buffer, const void *val)
 		}
 	}
 
-	memcpy((uint8_t *)buffer->data + buffer->len, val, buffer->elem_size);
+	memcpy((uint8_t *)buffer->data + (buffer->len * buffer->elem_size), val,
+	       buffer->elem_size);
 	buffer->len++;
 	return 0;
 }
