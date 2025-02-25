@@ -201,6 +201,8 @@ char *dtmf_decode(dtmf_t *dtmf)
 		i += samples_to_skip_on_press;
 	}
 
+	char terminator = '\0';
+	buffer_push(&result, &terminator);
 	return (char *)result.data;
 }
 
