@@ -366,6 +366,7 @@ static uint8_t char_row(char c)
 		return 3;
 	}
 	assert(0 && "Invalid Character Found");
+	return 0xFF;
 }
 static uint8_t char_col(char c)
 {
@@ -379,6 +380,7 @@ static uint8_t char_col(char c)
 		return 2;
 	}
 	assert(0 && "Invalid Character Found");
+	return 0xFF;
 }
 
 static uint32_t row_freq(uint8_t row)
