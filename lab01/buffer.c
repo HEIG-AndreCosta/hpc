@@ -46,7 +46,7 @@ void buffer_terminate(buffer_t *buffer)
 static int reallocate(buffer_t *buffer)
 {
 	size_t new_capacity = buffer->capacity * 2;
-	float *ptr = realloc(buffer->data, new_capacity);
+	float *ptr = realloc(buffer->data, new_capacity * sizeof(*ptr));
 	if (!ptr) {
 		return -1;
 	}
