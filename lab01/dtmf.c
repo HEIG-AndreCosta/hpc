@@ -169,7 +169,6 @@ char *dtmf_decode(dtmf_t *dtmf)
 		if (i == 0) {
 			btn_amplitude = amplitude - 0.1;
 		} else if (amplitude < btn_amplitude) {
-			printf("Amplitude low, silence\n");
 			const char decoded = decode(btn, consecutive_presses);
 			buffer_push(&result, &decoded);
 			consecutive_presses = 0;
@@ -187,7 +186,6 @@ char *dtmf_decode(dtmf_t *dtmf)
 		extract_frequencies(buffer, len, dtmf->sample_rate, &f1, &f2);
 
 		if (!(is_valid_frequency(f1) && is_valid_frequency(f2))) {
-			printf("Invalid frequency %d %d\n", f1, f2);
 			const char decoded = decode(btn, consecutive_presses);
 			buffer_push(&result, &decoded);
 			consecutive_presses = 0;
