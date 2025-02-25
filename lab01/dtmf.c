@@ -27,23 +27,13 @@
 #define CHAR_PAUSE_DURATION	 0.2
 #define SAME_CHAR_PAUSE_DURATION 0.05
 
-#define CHAR_SOUND_SAMPLES	 (CHAR_SOUND_DURATION * SAMPLE_RATE)
-#define CHAR_PAUSE_SAMPLES	 (CHAR_PAUSE_DURATION * SAMPLE_RATE)
-#define SAME_CHAR_PAUSE_SAMPLES	 (SAME_CHAR_PAUSE_DURATION * SAMPLE_RATE)
+#define AMPLITUDE		 .3
+#define SILENCE_F1		 0
+#define SILENCE_F2		 0
 
-#define DECODE_SKIP_SAMPLES_ON_SILENCE \
-	(CHAR_PAUSE_SAMPLES - SAME_CHAR_PAUSE_SAMPLES)
-
-#define DECODE_SKIP_SAMPLES_ON_PRESS \
-	(CHAR_SOUND_SAMPLES + SAME_CHAR_PAUSE_SAMPLES)
-
-#define AMPLITUDE  .3
-#define SILENCE_F1 0
-#define SILENCE_F2 0
-
-#define MIN_FREQ   697
-#define MAX_FREQ   1500
-#define NB_BUTTONS 11
+#define MIN_FREQ		 697
+#define MAX_FREQ		 1500
+#define NB_BUTTONS		 11
 
 const char *button_characters[NB_BUTTONS] = { "1",     "2abc",	"3def",	 "4ghi",
 					      "5jkl",  "6mno",	"7pqrs", "8tuv",
@@ -59,7 +49,8 @@ static char decode(size_t button, size_t presses);
 static uint32_t row_freq(uint8_t row);
 static uint32_t col_freq(uint8_t col);
 static bool is_char_valid(char c);
-static int encode_internal(buffer_t *buffer, const char *value);
+static int encode_internal(buffer_t *buffer, const char *value,
+			   uint32_t sample_rate);
 static size_t get_times_to_push(size_t btn_nr, char value);
 
 static float get_amplitude(const float *buffer, size_t len);
@@ -67,6 +58,32 @@ static uint8_t closest_row(uint32_t freq);
 static uint8_t closest_col(uint32_t freq);
 static uint8_t closest(const uint16_t *values, size_t len, uint32_t freq);
 static bool is_valid_frequency(uint32_t freq);
+
+static inline size_t char_sound_samples(uint32_t sample_rate)
+{
+	return CHAR_SOUND_DURATION * sample_rate;
+}
+
+static inline size_t char_pause_samples(uint32_t sample_rate)
+{
+	return CHAR_PAUSE_DURATION * sample_rate;
+}
+
+static inline size_t same_char_pause_samples(uint32_t sample_rate)
+{
+	return SAME_CHAR_PAUSE_DURATION * sample_rate;
+}
+static inline size_t decode_samples_to_skip_on_silence(uint32_t sample_rate)
+{
+	return char_pause_samples(sample_rate) -
+	       same_char_pause_samples(sample_rate);
+}
+
+static inline size_t decode_samples_to_skip_on_press(uint32_t sample_rate)
+{
+	return char_sound_samples(sample_rate) +
+	       same_char_pause_samples(sample_rate);
+}
 
 const char *dtmf_err_to_string(dtmf_err_t err)
 {
@@ -98,19 +115,21 @@ dtmf_err_t dtmf_encode(dtmf_t *dtmf, const char *value)
 		return DTMF_INVALID_ENCODING_STRING;
 	}
 
-	int err = buffer_init(&dtmf->buffer, strlen(value) * CHAR_SOUND_SAMPLES,
+	int err = buffer_init(&dtmf->buffer,
+			      strlen(value) *
+				      char_sound_samples(dtmf->sample_rate),
 			      sizeof(float));
 	if (err < 0) {
 		return DTMF_NO_MEMORY;
 	}
 	dtmf->channels = 1;
 	dtmf->sample_rate = SAMPLE_RATE;
-	return encode_internal(&dtmf->buffer, value);
+	return encode_internal(&dtmf->buffer, value, dtmf->sample_rate);
 }
 
 char *dtmf_decode(dtmf_t *dtmf)
 {
-	size_t len = SAME_CHAR_PAUSE_SAMPLES;
+	size_t len = same_char_pause_samples(dtmf->sample_rate);
 	if (!is_power_of_2(len)) {
 		len = align_to_power_of_2(len);
 	}
@@ -128,6 +147,10 @@ char *dtmf_decode(dtmf_t *dtmf)
 		return NULL;
 	}
 
+	const size_t samples_to_skip_on_silence =
+		decode_samples_to_skip_on_silence(dtmf->sample_rate);
+	const size_t samples_to_skip_on_press =
+		decode_samples_to_skip_on_press(dtmf->sample_rate);
 	uint32_t f1 = 0, f2 = 0;
 	float btn_amplitude = 0;
 	size_t i = 0;
@@ -139,10 +162,11 @@ char *dtmf_decode(dtmf_t *dtmf)
 		if (i == 0) {
 			btn_amplitude = amplitude - 0.1;
 		} else if (amplitude < btn_amplitude) {
+			printf("Amplitude low, silence\n");
 			const char decoded = decode(btn, consecutive_presses);
 			buffer_push(&result, &decoded);
 			consecutive_presses = 0;
-			i += DECODE_SKIP_SAMPLES_ON_SILENCE;
+			i += samples_to_skip_on_silence;
 			continue;
 		}
 
@@ -156,10 +180,11 @@ char *dtmf_decode(dtmf_t *dtmf)
 		extract_frequencies(buffer, len, dtmf->sample_rate, &f1, &f2);
 
 		if (!(is_valid_frequency(f1) && is_valid_frequency(f2))) {
+			printf("Invalid frequency %d %d\n", f1, f2);
 			const char decoded = decode(btn, consecutive_presses);
 			buffer_push(&result, &decoded);
 			consecutive_presses = 0;
-			i += DECODE_SKIP_SAMPLES_ON_SILENCE;
+			i += samples_to_skip_on_silence;
 			continue;
 		}
 
@@ -173,10 +198,9 @@ char *dtmf_decode(dtmf_t *dtmf)
 		}
 		consecutive_presses++;
 		btn = row * 3 + col;
-		i += DECODE_SKIP_SAMPLES_ON_PRESS;
+		i += samples_to_skip_on_press;
 	}
-	printf("Extracted %d %d from %zu/%zu samples\n", f1, f2, len,
-	       dtmf->buffer.len);
+
 	return (char *)result.data;
 }
 
@@ -227,8 +251,13 @@ static bool is_valid_frequency(uint32_t freq)
 {
 	return freq > 650 || freq < 1500;
 }
-static int encode_internal(buffer_t *buffer, const char *value)
+static int encode_internal(buffer_t *buffer, const char *value,
+			   uint32_t sample_rate)
 {
+	const size_t nb_samples_on_char_pause = char_pause_samples(sample_rate);
+	const size_t nb_samples_on_same_char_pause =
+		same_char_pause_samples(sample_rate);
+	const size_t nb_samples_on_char = char_sound_samples(sample_rate);
 	for (size_t i = 0; i < strlen(value); ++i) {
 		const uint8_t row = char_row(value[i]);
 		const uint8_t col = char_col(value[i]);
@@ -240,22 +269,22 @@ static int encode_internal(buffer_t *buffer, const char *value)
 		int err;
 		if (i > 0) {
 			err = push_samples(buffer, SILENCE_F1, SILENCE_F2,
-					   CHAR_PAUSE_SAMPLES);
+					   nb_samples_on_char_pause);
 			if (err < 0) {
 				return DTMF_NO_MEMORY;
 			}
 		}
 		for (size_t j = 0; j < times_to_push; ++j) {
 			if (j > 0) {
-				err = push_samples(buffer, SILENCE_F1,
-						   SILENCE_F2,
-						   SAME_CHAR_PAUSE_SAMPLES);
+				err = push_samples(
+					buffer, SILENCE_F1, SILENCE_F2,
+					nb_samples_on_same_char_pause);
 				if (err < 0) {
 					return DTMF_NO_MEMORY;
 				}
 			}
 
-			err = push_samples(buffer, f1, f2, CHAR_SOUND_SAMPLES);
+			err = push_samples(buffer, f1, f2, nb_samples_on_char);
 			if (err < 0) {
 				return DTMF_NO_MEMORY;
 			}
