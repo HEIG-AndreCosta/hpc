@@ -169,16 +169,39 @@ char *dtmf_decode(dtmf_t *dtmf)
 	uint32_t f1 = 0, f2 = 0;
 	float btn_amplitude = 0;
 	size_t i = 0;
-	size_t btn = 0xFF;
-	size_t consecutive_presses = 0;
+
+	/* First find the start of the file */
 	while ((i + len) < dtmf->buffer.len) {
-		float amplitude =
-			get_amplitude((float *)dtmf->buffer.data + i, len);
-		if (i == 0) {
+		float_to_cplx_t((float *)dtmf->buffer.data + i, buffer, len);
+
+		int err = fft(buffer, len);
+		if (err != 0) {
+			printf("Error running fft\n");
+			return NULL;
+		}
+		extract_frequencies(buffer, len, dtmf->sample_rate, &f1, &f2);
+
+		if (is_valid_frequency(f1) && is_valid_frequency(f2)) {
+			/* Found the start of the file */
+			const float amplitude = get_amplitude(
+				(float *)dtmf->buffer.data + i, len);
+
 			btn_amplitude = amplitude - (amplitude / 10);
 			printf("Using %g as silence amplitude threshold\n",
 			       btn_amplitude);
-		} else if (amplitude < btn_amplitude) {
+			break;
+		} else {
+			i += len;
+		}
+	}
+
+	size_t btn = 0xFF;
+	size_t consecutive_presses = 0;
+	while ((i + len) < dtmf->buffer.len) {
+		const float amplitude =
+			get_amplitude((float *)dtmf->buffer.data + i, len);
+
+		if (amplitude < btn_amplitude) {
 			const char decoded = decode(btn, consecutive_presses);
 			buffer_push(&result, &decoded);
 			consecutive_presses = 0;
