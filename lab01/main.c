@@ -7,10 +7,42 @@
 #include <stdio.h>
 #include <string.h>
 
+typedef char *(*dtmf_decode_fn)(dtmf_t *);
 void print_usage(const char *prog)
 {
 	printf("Usage :\n  %s encode input.txt output.wav\n  %s decode input.wav\n",
 	       prog, prog);
+}
+
+int decode(const char *wave_file, dtmf_decode_fn decode_fn)
+{
+	dtmf_t decoder;
+	double sample_rate;
+	size_t len;
+	float *data = wave_read(wave_file, &len, &sample_rate);
+	if (!data) {
+		return EXIT_FAILURE;
+	}
+
+	buffer_construct(&decoder.buffer, data, len, len, sizeof(*data));
+	decoder.sample_rate = sample_rate;
+	decoder.channels = 1;
+
+	clock_t t;
+	t = clock();
+	char *value = decode_fn(&decoder);
+	t = clock() - t;
+	if (!value) {
+		printf("Failed to decode\n");
+		return EXIT_FAILURE;
+	}
+	const double time_taken = ((double)t) / CLOCKS_PER_SEC;
+	printf("Decoding alone took %g seconds\n", time_taken);
+
+	printf("Decoded: %s\n", value);
+
+	dtmf_terminate(&decoder);
+	return EXIT_SUCCESS;
 }
 
 int main(int argc, char *argv[])
@@ -50,35 +82,10 @@ int main(int argc, char *argv[])
 		return err != 0;
 
 	} else if (strcmp(argv[1], "decode") == 0) {
-		dtmf_t decoder;
-		double sample_rate;
-		size_t len;
-		float *data = wave_read(argv[2], &len, &sample_rate);
-		if (!data) {
-			return EXIT_FAILURE;
-		}
+		return decode(argv[2], dtmf_decode);
 
-		buffer_construct(&decoder.buffer, data, len, len,
-				 sizeof(*data));
-		decoder.sample_rate = sample_rate;
-		decoder.channels = 1;
-
-		clock_t t;
-		t = clock();
-		char *value = dtmf_decode(&decoder);
-		t = clock() - t;
-		if (!value) {
-			printf("Failed to decode\n");
-			return EXIT_FAILURE;
-		}
-		const double time_taken = ((double)t) / CLOCKS_PER_SEC;
-		printf("Decoding alone took %g seconds\n", time_taken);
-
-		printf("Decoded: %s\n", value);
-
-		dtmf_terminate(&decoder);
-		return EXIT_SUCCESS;
-
+	} else if (strcmp(argv[1], "decode_lookup") == 0) {
+		return decode(argv[2], dtmf_decode_lookup);
 	} else {
 		print_usage(argv[0]);
 		return 1;

@@ -1,8 +1,8 @@
 #include "dtmf.h"
 
 #include "buffer.h"
-#include "fft.h"
 #include "utils.h"
+#include "fft.h"
 #include <assert.h>
 #include <math.h>
 #include <ctype.h>
@@ -37,17 +37,23 @@
 #define SPECIAL_BUTTON_CHAR	 '*'
 
 #if 0
-const char *button_characters[NB_BUTTONS] = { "1",     "2abc",	"3def",	 "4ghi",
-					      "5jkl",  "6mno",	"7pqrs", "8tuv",
-					      "9wxyz", "#.!?,", "0 " };
+const char *button_characters[] = { "1",     "2abc",  "3def",  "4ghi",
+				    "5jkl",  "6mno",  "7pqrs", "8tuv",
+				    "9wxyz", "#.!?,", "0 " };
 
 #else
-const char *button_characters[NB_BUTTONS] = { "1",     "abc2",	"def3",	 "ghi4",
-					      "jkl5",  "mno6",	"pqrs7", "tuv8",
-					      "wxyz9", "#.!?,", " 0" };
+const char *button_characters[] = { "1",     "abc2",  "def3",  "ghi4",
+				    "jkl5",  "mno6",  "pqrs7", "tuv8",
+				    "wxyz9", "#.!?,", " 0" };
 #endif
-static const size_t NB_BUTTONS =
-	sizeof(button_characters) / sizeof(button_characters[0]);
+
+#define NB_BUTTONS sizeof(button_characters) / sizeof(button_characters[0])
+
+static buffer_t *decode_lookup_table[NB_BUTTONS];
+
+static size_t lookup_button(float *input, size_t len);
+static int init_decode_lookup_table(dtmf_t *dtmf);
+static void deinit_decode_lookup_table(void);
 
 static float s(float a, uint32_t f1, uint32_t f2, uint32_t t,
 	       uint32_t sample_rate);
@@ -142,6 +148,60 @@ dtmf_err_t dtmf_encode(dtmf_t *dtmf, const char *value)
 	return encode_internal(&dtmf->buffer, value, dtmf->sample_rate);
 }
 
+char *dtmf_decode_lookup(dtmf_t *dtmf)
+{
+	const size_t len = same_char_pause_samples(dtmf->sample_rate);
+	int err = init_decode_lookup_table(dtmf);
+	if (err < 0) {
+		printf("Failed to initialize lookup table\n");
+		return NULL;
+	}
+
+	buffer_t result;
+	int ret = buffer_init(&result, 128, sizeof(char));
+	if (ret < 0) {
+		printf("Failed to allocate memory for decode result\n");
+		return NULL;
+	}
+
+	const size_t samples_to_skip_on_silence =
+		decode_samples_to_skip_on_silence(dtmf->sample_rate);
+	const size_t samples_to_skip_on_press =
+		decode_samples_to_skip_on_press(dtmf->sample_rate);
+	float btn_amplitude = 0;
+	size_t i = 0;
+	size_t btn = 0;
+	size_t consecutive_presses = 0;
+	while ((i + len) < dtmf->buffer.len) {
+		float amplitude =
+			get_amplitude((float *)dtmf->buffer.data + i, len);
+		if (i == 0) {
+			btn_amplitude = amplitude - (amplitude / 10);
+			printf("Using %g as silence amplitude threshold\n",
+			       btn_amplitude);
+		} else if (amplitude < btn_amplitude) {
+			const char decoded = decode(btn, consecutive_presses);
+			buffer_push(&result, &decoded);
+			consecutive_presses = 0;
+			i += samples_to_skip_on_silence;
+			continue;
+		}
+
+		btn = lookup_button((float *)dtmf->buffer.data + i, len);
+		consecutive_presses++;
+		i += samples_to_skip_on_press;
+	}
+
+	/* If the file ended without a silence, add the last button */
+	if (consecutive_presses != 0) {
+		const char decoded = decode(btn, consecutive_presses);
+		buffer_push(&result, &decoded);
+	}
+	const char terminator = '\0';
+	buffer_push(&result, &terminator);
+	deinit_decode_lookup_table();
+	return (char *)result.data;
+}
 char *dtmf_decode(dtmf_t *dtmf)
 {
 	size_t len = same_char_pause_samples(dtmf->sample_rate);
@@ -255,6 +315,69 @@ void dtmf_terminate(dtmf_t *dtmf)
 	buffer_terminate(&dtmf->buffer);
 }
 
+static size_t lookup_button(float *input, size_t len)
+{
+	size_t button = 0;
+	float best_error = -1;
+	for (size_t i = 0; i < NB_BUTTONS; ++i) {
+		float error = 0;
+		for (size_t j = 0; j < len; ++j) {
+			const float dist =
+				((float *)decode_lookup_table[i]->data)[j] -
+				input[j];
+			error += dist * dist;
+		}
+		if (best_error == -1 || error < best_error) {
+			best_error = error;
+			button = i;
+		}
+	}
+	return button;
+}
+static int init_decode_lookup_table(dtmf_t *dtmf)
+{
+	const size_t samples = same_char_pause_samples(dtmf->sample_rate);
+	for (size_t i = 0; i < NB_BUTTONS; ++i) {
+		decode_lookup_table[i] = (buffer_t *)malloc(sizeof(buffer_t));
+
+		if (!decode_lookup_table[i]) {
+			printf("Couldn't allocate decode lookup table\n");
+			for (size_t j = 0; j < i; ++j) {
+				free(decode_lookup_table[j]);
+			}
+			return -1;
+		}
+		int err = buffer_init(decode_lookup_table[i], samples,
+				      sizeof(float));
+		if (err < 0) {
+			printf("Couldn't init decode lookup table\n");
+			for (size_t j = 0; j < i; ++j) {
+				free(decode_lookup_table[j]);
+			}
+			return -1;
+		}
+	}
+	for (size_t i = 0; i < NB_BUTTONS; ++i) {
+		const size_t row = i / (sizeof(ROW_FREQ) / sizeof(ROW_FREQ[0]));
+		const size_t col = i % (sizeof(COL_FREQ) / sizeof(COL_FREQ[0]));
+
+		int err = push_samples(decode_lookup_table[i], row_freq(row),
+				       col_freq(col), samples,
+				       dtmf->sample_rate);
+		if (err < 0) {
+			deinit_decode_lookup_table();
+			return -1;
+		}
+	}
+	return 0;
+}
+
+static void deinit_decode_lookup_table(void)
+{
+	for (size_t i = 0; i < NB_BUTTONS; ++i) {
+		buffer_terminate(decode_lookup_table[i]);
+	}
+}
 static char decode(size_t button, size_t presses)
 {
 	assert(button <= NB_BUTTONS);
