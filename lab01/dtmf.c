@@ -220,6 +220,7 @@ char *dtmf_decode(dtmf_t *dtmf)
 	}
 	const char terminator = '\0';
 	buffer_push(&result, &terminator);
+	free(buffer);
 	return (char *)result.data;
 }
 
