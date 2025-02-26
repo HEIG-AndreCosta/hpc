@@ -34,7 +34,7 @@
 
 #define MIN_FREQ		 697
 #define MAX_FREQ		 1500
-#define NB_BUTTONS		 11
+#define SPECIAL_BUTTON_CHAR	 '*'
 
 #if 0
 const char *button_characters[NB_BUTTONS] = { "1",     "2abc",	"3def",	 "4ghi",
@@ -46,6 +46,9 @@ const char *button_characters[NB_BUTTONS] = { "1",     "abc2",	"def3",	 "ghi4",
 					      "jkl5",  "mno6",	"pqrs7", "tuv8",
 					      "wxyz9", "#.!?,", " 0" };
 #endif
+static const size_t NB_BUTTONS =
+	sizeof(button_characters) / sizeof(button_characters[0]);
+
 static float s(float a, uint32_t f1, uint32_t f2, uint32_t t,
 	       uint32_t sample_rate);
 static int push_samples(buffer_t *buffer, uint32_t f1, uint32_t f2,
@@ -231,9 +234,15 @@ void dtmf_terminate(dtmf_t *dtmf)
 
 static char decode(size_t button, size_t presses)
 {
-	assert(button <
-	       sizeof(button_characters) / sizeof(button_characters[0]));
+	assert(button <= NB_BUTTONS);
 
+	if (button == NB_BUTTONS) {
+		printf("Detected button %zu which should never happen and means the encoding is not very good :(\n",
+		       button + 1);
+		printf("\tUsing %c to represent this button\n",
+		       SPECIAL_BUTTON_CHAR);
+		return SPECIAL_BUTTON_CHAR;
+	}
 	return button_characters[button][(presses - 1) %
 					 strlen(button_characters[button])];
 }
