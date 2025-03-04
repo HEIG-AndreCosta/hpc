@@ -220,7 +220,7 @@ static ssize_t find_start_of_file(dtmf_t *dtmf, cplx_t *buffer, size_t len,
 			*amplitude = *amplitude - (*amplitude / 10);
 			printf("Using %g as silence amplitude threshold\n",
 			       *amplitude);
-			break;
+			return i;
 		} else {
 			i += len;
 		}
