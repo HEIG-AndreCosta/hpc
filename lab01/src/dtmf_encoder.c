@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
-#include <math.h>
 
 #define SPECIAL_CHARS ".!?,# "
 
