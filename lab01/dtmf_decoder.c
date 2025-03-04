@@ -12,9 +12,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define MIN_FREQ	    697
-#define MAX_FREQ	    1500
 #define RESULT_BUFFER_INITIAL_LEN 128
+#define MIN_FREQ		  650
+#define MAX_FREQ		  1500
 
 typedef dtmf_button_t *(*dtmf_decode_button_cb_t)(const float *signal,
 						  cplx_t *buffer, size_t len,
@@ -218,7 +218,7 @@ static bool is_silence(const float *buffer, size_t len, float target)
 
 static bool is_valid_frequency(uint32_t freq)
 {
-	return freq > 650 && freq < 1500;
+	return freq > MIN_FREQ && freq < MAX_FREQ;
 }
 static float calculate_correlation(const float *signal, const float *ref_signal,
 				   size_t len)
