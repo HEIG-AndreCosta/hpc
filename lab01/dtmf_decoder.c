@@ -88,10 +88,10 @@ static char *dtmf_decode_internal(dtmf_t *dtmf,
 		decode_samples_to_skip_on_silence(dtmf->sample_rate);
 	const size_t samples_to_skip_on_press =
 		decode_samples_to_skip_on_press(dtmf->sample_rate);
-	size_t len = SAME_CHAR_PAUSE_SAMPLES(dtmf->sample_rate);
-	if (!is_power_of_2(len)) {
-		len = align_to_power_of_2(len);
-	}
+	const size_t min_len = SAME_CHAR_PAUSE_SAMPLES(dtmf->sample_rate);
+
+	const size_t len =
+		is_power_of_2(min_len) ? min_len : align_to_power_of_2(min_len);
 
 	cplx_t *buffer = calloc(len, sizeof(*buffer));
 	if (!buffer) {
