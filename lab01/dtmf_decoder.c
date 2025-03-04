@@ -202,7 +202,6 @@ static ssize_t find_start_of_file(dtmf_t *dtmf, cplx_t *buffer, size_t len,
 	uint32_t f1 = 0, f2 = 0;
 	size_t i = 0;
 
-	/* First find the start of the file */
 	while ((i + len) < dtmf->buffer.len) {
 		float_to_cplx_t((float *)dtmf->buffer.data + i, buffer, len);
 
