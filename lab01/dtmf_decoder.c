@@ -215,7 +215,7 @@ static ssize_t find_start_of_file(dtmf_t *dtmf, cplx_t *buffer, size_t len,
 
 		if (is_valid_frequency(f1) && is_valid_frequency(f2)) {
 			/* Found the start of the file */
-			*amplitude = get_amplitude(
+			*amplitude = get_max_amplitude(
 				(float *)dtmf->buffer.data + i, len);
 
 			*amplitude = *amplitude - (*amplitude / 10);
@@ -235,7 +235,7 @@ static int push_decoded(dtmf_button_t *btn, buffer_t *result, size_t *presses)
 	return buffer_push(result, &decoded);
 }
 
-static float get_amplitude(const float *buffer, size_t len)
+static float get_max_amplitude(const float *buffer, size_t len)
 {
 	float amplitude = 0;
 
