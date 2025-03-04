@@ -107,13 +107,17 @@ static char *dtmf_decode_internal(dtmf_t *dtmf,
 	}
 	float target_amplitude = 0;
 
-	ssize_t i = find_start_of_file(dtmf, buffer, len, &target_amplitude);
-	if (i < 0) {
+	ssize_t start =
+		find_start_of_file(dtmf, buffer, len, &target_amplitude);
+	if (start < 0) {
 		printf("Couldn't find the first button press\n");
 		free(buffer);
 		buffer_terminate(&result);
 		return NULL;
 	}
+
+	/* This cast is safe as per the check above*/
+	size_t i = (size_t)start;
 
 	dtmf_button_t *btn = NULL;
 	size_t consecutive_presses = 0;
