@@ -7,14 +7,6 @@
 #include <assert.h>
 #include <math.h>
 
-#define COL0_CHARS    "147#ghipqrs.!?,"
-#define COL1_CHARS    "2580abcjkltuv "
-#define COL2_CHARS    "369defmnowxyz"
-
-#define ROW0_CHARS    "123abcdef"
-#define ROW1_CHARS    "456ghijklmno"
-#define ROW2_CHARS    "789pqrstuvwxyz"
-#define ROW3_CHARS    "#0.!?, "
 #define SPECIAL_CHARS ".!?,# "
 
 #define AMPLITUDE     .3
@@ -25,11 +17,6 @@
 static bool is_char_valid(char c);
 static int encode_internal(buffer_t *buffer, const char *value,
 			   uint32_t sample_rate);
-
-static uint8_t char_row(char c);
-static uint8_t char_col(char c);
-static uint32_t col_freq(uint8_t col);
-static uint32_t row_freq(uint8_t row);
 static int push_samples(buffer_t *buffer, uint32_t f1, uint32_t f2,
 			size_t nb_samples, uint32_t sample_rate);
 static float s(float a, uint32_t f1, uint32_t f2, uint32_t t,
@@ -73,14 +60,12 @@ static int encode_internal(buffer_t *buffer, const char *value,
 	const size_t nb_samples_on_same_char_pause =
 		SAME_CHAR_PAUSE_SAMPLES(sample_rate);
 	const size_t nb_samples_on_char = CHAR_SOUND_SAMPLES(sample_rate);
+
 	for (size_t i = 0; i < strlen(value); ++i) {
-		const uint8_t row = char_row(value[i]);
-		const uint8_t col = char_col(value[i]);
-		const uint32_t f1 = row_freq(row);
-		const uint32_t f2 = col_freq(col);
-		const size_t btn = row * 3 + col;
-		const size_t times_to_push =
-			dtmf_get_times_to_push(btn, value[i], EXTRA_PRESSES);
+		const dtmf_button_t *button = dtmf_get_button(value[i]);
+		assert(button);
+		const size_t times_to_push = dtmf_get_times_to_push(
+			button->index, value[i], EXTRA_PRESSES);
 
 		int err;
 		if (i > 0) {
@@ -102,7 +87,8 @@ static int encode_internal(buffer_t *buffer, const char *value,
 				}
 			}
 
-			err = push_samples(buffer, f1, f2, nb_samples_on_char,
+			err = push_samples(buffer, button->row_freq,
+					   button->col_freq, nb_samples_on_char,
 					   sample_rate);
 			if (err < 0) {
 				return DTMF_NO_MEMORY;
@@ -110,49 +96,6 @@ static int encode_internal(buffer_t *buffer, const char *value,
 		}
 	}
 	return DTMF_OK;
-}
-
-static uint8_t char_row(char c)
-{
-	if (strchr(ROW0_CHARS, c) != NULL) {
-		return 0;
-	}
-	if (strchr(ROW1_CHARS, c) != NULL) {
-		return 1;
-	}
-	if (strchr(ROW2_CHARS, c) != NULL) {
-		return 2;
-	}
-	if (strchr(ROW3_CHARS, c) != NULL) {
-		return 3;
-	}
-	assert(0 && "Invalid Character Found");
-	return 0xFF;
-}
-static uint8_t char_col(char c)
-{
-	if (strchr(COL0_CHARS, c) != NULL) {
-		return 0;
-	}
-	if (strchr(COL1_CHARS, c) != NULL) {
-		return 1;
-	}
-	if (strchr(COL2_CHARS, c) != NULL) {
-		return 2;
-	}
-	assert(0 && "Invalid Character Found");
-	return 0xFF;
-}
-
-static uint32_t row_freq(uint8_t row)
-{
-	assert(row < (sizeof(ROW_FREQ) / sizeof(ROW_FREQ[0])));
-	return ROW_FREQ[row];
-}
-static uint32_t col_freq(uint8_t col)
-{
-	assert(col < (sizeof(COL_FREQ) / sizeof(COL_FREQ[0])));
-	return COL_FREQ[col];
 }
 
 static int push_samples(buffer_t *buffer, uint32_t f1, uint32_t f2,
