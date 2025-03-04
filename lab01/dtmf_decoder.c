@@ -122,24 +122,60 @@ static char *dtmf_decode_internal(dtmf_t *dtmf,
 	dtmf_button_t *btn = NULL;
 	size_t consecutive_presses = 0;
 	while ((i + len) < dtmf->buffer.len) {
+		/* First check for silence */
 		if (is_silence((float *)dtmf->buffer.data + i, len,
 			       target_amplitude)) {
+			/*
+			 * btn will never be NULL here since we only get here after
+			 * `find_start_of_file` detects the first button press 
+			 */
+			assert(btn);
 			push_decoded(btn, &result, &consecutive_presses);
 			i += samples_to_skip_on_silence;
 			continue;
 		}
 
+		/* No silence here, decode the button */
 		dtmf_button_t *new_btn =
 			decode_button_fn((float *)dtmf->buffer.data + i, buffer,
 					 len, dtmf->sample_rate);
 
+		/* 
+		 * Failed to decode the button so this must be noise,
+		 * the last button and the number of presses indicates the character to decode
+		 */
 		if (!new_btn) {
+			/* 
+			 * If button is still NULL here, it means we weren't able to decode the first 
+			 * button press. No point in trying, just fail
+			 */
+			if (!btn) {
+				printf("Failed to decode the first button press... Sorry :(\n");
+				free(buffer);
+				buffer_terminate(&result);
+				return NULL;
+			}
+
 			push_decoded(btn, &result, &consecutive_presses);
+			/* 
+			 * Since we know the pause between button presses takes either SAME_CHAR_PAUSE_DURATION  time
+			 * or CHAR_PAUSE_DURATION time, if we get here it means the pause is of CHAR_PAUSE_DURATION time
+			 * Simply skip the correct amount of samples and next loop we should detect the next button press
+			 */
 			i += samples_to_skip_on_silence;
 			continue;
 		}
+		/*
+		 * If we get here it either means this is the first time this button is getting pressed
+		 * or it's the same button we detected earlier 
+		 */
 		btn = new_btn;
 		consecutive_presses++;
+		/* 
+		 * Since we know a press must take CHAR_SOUND_DURATION time
+		 * and then we will have at least SAME_CHAR_PAUSE_DURATION time
+		 * We can simply skip that amount of samples
+		 */
 		i += samples_to_skip_on_press;
 	}
 
