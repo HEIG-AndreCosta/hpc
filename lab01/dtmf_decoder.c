@@ -15,6 +15,7 @@
 #define MIN_FREQ	    697
 #define MAX_FREQ	    1500
 #define SPECIAL_BUTTON_CHAR '*'
+#define RESULT_BUFFER_INITIAL_LEN 128
 
 typedef dtmf_button_t *(*dtmf_decode_button_cb_t)(const float *signal,
 						  cplx_t *buffer, size_t len,
@@ -99,7 +100,7 @@ static char *dtmf_decode_internal(dtmf_t *dtmf,
 		return NULL;
 	}
 	buffer_t result;
-	int ret = buffer_init(&result, 128, sizeof(char));
+	int ret = buffer_init(&result, RESULT_BUFFER_INITIAL_LEN, sizeof(char));
 	if (ret < 0) {
 		printf("Failed to allocate memory for decode result\n");
 		free(buffer);
