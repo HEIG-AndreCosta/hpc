@@ -28,13 +28,16 @@ static dtmf_button_t *decode_button_time_domain(const float *signal,
 						cplx_t *buffer, size_t len,
 						uint32_t sample_rate);
 
+/* Used for time domain decoding in order to correlate */
+static float **button_reference_signals = NULL;
+static bool generated_references = false;
+
 static const uint16_t ROW_FREQUENCIES[] = { 697, 770, 852, 941 };
 static const uint16_t COL_FREQUENCIES[] = { 1209, 1336, 1477 };
 
-static float calculate_correlation(const float *signal, size_t len,
-				   uint16_t row_freq, uint16_t col_freq,
-				   uint32_t sample_rate);
-static float get_amplitude(const float *buffer, size_t len);
+static float calculate_correlation(const float *signal, const float *ref_signal,
+				   size_t len);
+static float get_max_amplitude(const float *buffer, size_t len);
 static bool is_silence(const float *buffer, size_t len, float target);
 static bool is_valid_frequency(uint32_t freq);
 static int push_decoded(dtmf_button_t *btn, buffer_t *result, size_t *presses);
@@ -217,23 +220,21 @@ static bool is_valid_frequency(uint32_t freq)
 {
 	return freq > 650 && freq < 1500;
 }
-static float calculate_correlation(const float *signal, size_t len,
-				   uint16_t row_freq, uint16_t col_freq,
-				   uint32_t sample_rate)
+static float calculate_correlation(const float *signal, const float *ref_signal,
+				   size_t len)
 {
 	float mean_signal = 0, mean_sine = 0;
 	for (size_t i = 0; i < len; i++) {
 		mean_signal += signal[i];
-		mean_sine += s(1, row_freq, col_freq, i, sample_rate);
+		mean_sine += ref_signal[i];
 	}
 	mean_signal /= len;
 	mean_sine /= len;
 
-	double numerator = 0, denom1 = 0, denom2 = 0;
+	float numerator = 0, denom1 = 0, denom2 = 0;
 	for (size_t i = 0; i < len; i++) {
-		const double diff_signal = signal[i] - mean_signal;
-		const double diff_sine =
-			s(1, row_freq, col_freq, i, sample_rate) - mean_sine;
+		const float diff_signal = signal[i] - mean_signal;
+		const float diff_sine = ref_signal[i] - mean_sine;
 		numerator += diff_signal * diff_sine;
 		denom1 += diff_signal * diff_signal;
 		denom2 += diff_sine * diff_sine;
@@ -242,8 +243,6 @@ static float calculate_correlation(const float *signal, size_t len,
 	if (denom1 == 0.0 || denom2 == 0.0) {
 		return 0.0f;
 	}
-	printf("%d %d Correlation %f\n", row_freq, col_freq,
-	       numerator / (sqrt(denom1 * denom2)));
 
 	return numerator / (sqrt(denom1 * denom2));
 }
@@ -266,25 +265,55 @@ static dtmf_button_t *decode_button_frequency_domain(const float *signal,
 	}
 	return dtmf_get_closest_button(f1, f2);
 }
+static void generate_reference_signals(size_t len, uint32_t sample_rate)
+{
+	const size_t nb_buttons =
+		ARRAY_LEN(ROW_FREQUENCIES) + ARRAY_LEN(COL_FREQUENCIES);
+
+	button_reference_signals =
+		calloc(nb_buttons, sizeof(*button_reference_signals));
+
+	for (size_t i = 0; i < ARRAY_LEN(ROW_FREQUENCIES); ++i) {
+		for (size_t j = 0; j < ARRAY_LEN(COL_FREQUENCIES); ++j) {
+			const size_t index = i * ARRAY_LEN(COL_FREQUENCIES) + j;
+			button_reference_signals[index] = malloc(
+				len * sizeof(*button_reference_signals[index]));
+
+			for (size_t k = 0; k < len; ++k) {
+				button_reference_signals[index][k] =
+					s(1, ROW_FREQUENCIES[i],
+					  COL_FREQUENCIES[j], k, sample_rate);
+			}
+		}
+	}
+}
 static dtmf_button_t *decode_button_time_domain(const float *signal,
 						cplx_t *buffer, size_t len,
 						uint32_t sample_rate)
 {
 	(void)buffer;
 	(void)len;
-	const size_t samples = 5 * (sample_rate / ROW_FREQUENCIES[0]);
-	assert(samples <= len);
+	const size_t nb_samples = 5 * (sample_rate / ROW_FREQUENCIES[0]);
+	assert(nb_samples <= len);
 
-	int f1 = 0;
-	int f2 = 0;
+	if (!generated_references) {
+		generate_reference_signals(nb_samples, sample_rate);
+		/* Make sure we only do this once*/
+		generated_references = true;
+	}
+
+	uint16_t f1 = 0;
+	uint16_t f2 = 0;
 	float best_corr = 0;
 	for (size_t i = 0; i < ARRAY_LEN(ROW_FREQUENCIES); ++i) {
 		const uint16_t row_freq = ROW_FREQUENCIES[i];
 		for (size_t j = 0; j < ARRAY_LEN(COL_FREQUENCIES); ++j) {
 			const uint16_t col_freq = COL_FREQUENCIES[j];
-			const float corr =
-				calculate_correlation(signal, samples, row_freq,
-						      col_freq, sample_rate);
+			const size_t index = i * ARRAY_LEN(COL_FREQUENCIES) + j;
+			const float corr = calculate_correlation(
+				signal, button_reference_signals[index],
+				nb_samples);
+
 			if (corr > best_corr) {
 				f1 = row_freq;
 				f2 = col_freq;
