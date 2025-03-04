@@ -198,6 +198,7 @@ void dtmf_terminate(dtmf_t *dtmf)
 static ssize_t find_start_of_file(dtmf_t *dtmf, cplx_t *buffer, size_t len,
 				  float *amplitude)
 {
+	assert(is_power_of_2(len));
 	uint32_t f1 = 0, f2 = 0;
 	size_t i = 0;
 
