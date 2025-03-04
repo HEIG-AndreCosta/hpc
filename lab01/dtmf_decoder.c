@@ -14,7 +14,6 @@
 
 #define MIN_FREQ	    697
 #define MAX_FREQ	    1500
-#define SPECIAL_BUTTON_CHAR '*'
 #define RESULT_BUFFER_INITIAL_LEN 128
 
 typedef dtmf_button_t *(*dtmf_decode_button_cb_t)(const float *signal,
