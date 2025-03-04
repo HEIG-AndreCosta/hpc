@@ -9,7 +9,7 @@ if(NOT SNDFILE_INCLUDE_DIR OR NOT SNDFILE_LIBRARY)
     message(FATAL_ERROR "libsndfile non trouvé. Assurez-vous que libsndfile1 et libsndfile1-dev sont installés.")
 endif()
 
-add_executable(dtmf_encdec main.c buffer.c dtmf.c file.c wave.c utils.c fft.c)
+add_executable(dtmf_encdec main.c buffer.c dtmf.c file.c wave.c utils.c fft.c dtmf_encoder.c dtmf_decoder.c)
 target_include_directories(dtmf_encdec PRIVATE ${SNDFILE_INCLUDE_DIR})
 target_link_libraries(dtmf_encdec PRIVATE ${SNDFILE_LIBRARY} -lm)
 

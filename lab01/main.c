@@ -83,9 +83,6 @@ int main(int argc, char *argv[])
 
 	} else if (strcmp(argv[1], "decode") == 0) {
 		return decode(argv[2], dtmf_decode);
-
-	} else if (strcmp(argv[1], "decode_lookup") == 0) {
-		return decode(argv[2], dtmf_decode_lookup);
 	} else {
 		print_usage(argv[0]);
 		return 1;
