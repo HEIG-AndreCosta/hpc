@@ -19,8 +19,6 @@ static int encode_internal(buffer_t *buffer, const char *value,
 			   uint32_t sample_rate);
 static int push_samples(buffer_t *buffer, uint32_t f1, uint32_t f2,
 			size_t nb_samples, uint32_t sample_rate);
-static float s(float a, uint32_t f1, uint32_t f2, uint32_t t,
-	       uint32_t sample_rate);
 
 bool dtmf_is_valid(const char *value)
 {
@@ -109,13 +107,6 @@ static int push_samples(buffer_t *buffer, uint32_t f1, uint32_t f2,
 		}
 	}
 	return 0;
-}
-
-static float s(float a, uint32_t f1, uint32_t f2, uint32_t t,
-	       uint32_t sample_rate)
-{
-	return a * (sin(2. * M_PI * f1 * t / sample_rate) +
-		    sin(2. * M_PI * f2 * t / sample_rate));
 }
 
 static bool is_char_valid(char c)
