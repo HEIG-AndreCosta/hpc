@@ -1,10 +1,6 @@
-#set align(center)
+#include "title.typ"
 
-= HPC - Labo 01 - DTMF
-== André Costa
-
-#set align(left)
-
+#pagebreak()
 = Introduction
 
 Ce laboratoire a comme objectif la familiarisation avec le langage `C`.
