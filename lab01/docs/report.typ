@@ -415,9 +415,27 @@ const double time_taken = ((double)t) / CLOCKS_PER_SEC;
 printf("Decoding alone took %g seconds\n", time_taken);
 ```
 
+== Ordinateur
+
+Le code a été lancé dans un ordinateur avec le CPU et mémoire cache suivantes:
+
+#block(
+	fill: luma(230),
+	inset: 8pt,
+	radius: 4pt,
+```bash
+CPU: AMD Ryzen 5 3600 (12) @ 4.20 GHz
+Caches (sum of all):      
+  L1d:                    192 KiB (6 instances)
+  L1i:                    192 KiB (6 instances)
+  L2:                     3 MiB (6 instances)
+  L3:                     32 MiB (2 instances)
+```
+)
+
 #pagebreak()
 
-*Hard To Decode*
+== Hard To Decode
 
 #block(
 	fill: luma(230),
@@ -486,7 +504,7 @@ Le programme en soit tourne `1.8` fois plus rapidement.
 
 #pagebreak()
 
-*Crashing is not allowed*
+== Crashing is not allowed
 
 Vu la longeur du signal `crashing_is_not_allowed` il est 
 possible d'avoir des résultats plus fiables.
@@ -532,3 +550,25 @@ Le décodage dans le domaine temporel est toujours très rapide, sûrement à ca
 Ici le décodage linéaire est environ `25` fois plus rapide que le décodage avec l'analyse fréquentielle.
 
 Le programme en soit tourne `12.6` fois plus rapidement.
+
+
+#pagebreak()
+
+== Graphique
+
+Finalement, voici un graphe avec les informations ressorties des mesures : 
+#table(
+  columns: (auto, auto, auto, auto),
+  inset: 10pt,
+  align: horizon,
+  table.header(
+	[Name], [Number of Samples], [Decoding Time - FFT [ms]], [Decoding Time - Correlation [ms]],
+	[Crashing is not allowed],[608805],[341.3],[13.7],
+	[Hard To Decode],[66800],[1.6],[0.2]
+  ), 
+)
+
+#figure(
+	image("./media/graph.png"),
+	caption : [Decoding Time vs File Size Per Algorithm]
+)
