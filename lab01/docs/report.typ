@@ -84,16 +84,16 @@ où :
 - $f_("row")$ et $f_("col")$ sont les fréquences DTMF associées au caractère,
 - $t$ est le temps.
 
-Comme le traitement est effectué avec des échantillons, $t$ peut être determiné avec
+$t$ peut être determiné avec :
 
 $ t = "sample_number" / "sample_rate" $
 
 == Fréquence d'échantillonage (Sample Rate)
 
-Pour l'encodage la fréquence d'échantillonage est fixée à `44.1 kHz`, ce
-qui est un habituel pour des application audio.
+Pour l'encodage, la fréquence d'échantillonage est fixée à `44.1 kHz`, ce
+qui est un habituel pour des applications audio.
 
-La fréquence minimale est tout de fois plus basse. En effet, selon le théorème
+La fréquence minimale est toute fois plus basse. En effet, selon le théorème
 de Nyquist, la fréquence minimale doit être au moins deux fois plus élevé que 
 la fréquence maximale que nous allons utiliser ce qui donne la relation suivante:
 
@@ -129,9 +129,9 @@ pressions sur le deuxième bouton à la place de `1` pression.
 
 = Decodage
 
-Les différentes contraintes du système permettent de simplifier énormément le décodeur.
+== Contraintes du Système
 
-Pour rappel, les 3 contraintes du système sont:
+Les 3 contraintes du système sont:
 
 1. Une durée d’un son de 0.2 secondes par caractère.
 2. Une pause de 0.2 secondes entre deux caractères.
@@ -204,17 +204,57 @@ sur une fenêtre de `0.05 secondes`. On en extrait les deux fréquences dominant
 si celles-ci appartiennent à l'intervalle $[650"Hz";1500"Hz"]$,
 elles sont considérées comme valides. On identifie alors les fréquences les plus proches parmi les fréquences DTMF afin de déterminer le bouton correspondant.  
 
+#pagebreak()
 == Analyse Temporelle  
 
 L'analyse temporelle consiste à générer des signaux de référence pour chaque touche,
 puis à calculer la corrélation entre la fenêtre de `0.05 secondes` et ces signaux de référence.
 Le bouton associé au signal de référence présentant la meilleure corrélation est alors considéré comme celui ayant été pressé.  
 
+La formule de la corrélation est la suivante :
+
+$ R = (sum_(i=1)^n (x_i - accent(x, macron)) (y_i - accent(y, macron))) / (sqrt(sum_(i=1)^n (x_i - accent(x, macron))^2 sum_(i=1)^n (y_i - accent(y, macron))^2)) $
+
+Avec :
+- $x$: Le signal à corréler
+- $accent(x, macron)$: La moyenne du signal à corréler
+- $y$: Le signal de référencce
+- $accent(y, macron)$: La moyenne du signal de référencce
+
+
+Comme dit précedemment, l'analyse se fait par des fenêtres de `0.05 secondes` mais une fenêtre plus
+petite est suffisamment large pour faire cette corrélation.
+
+Le nombre d'échantillons minimale pour la période maximale est donné par :
+
+$ N_"samples"_"min" = "sample_rate" / F_"min" $
+
+Avec:
+- $ F_"min" = 697 "Hz" $
+
+Et le nombre d'échantillons pris pour calculer la corrélation :
+
+$ N_"samples" = 5 * N_"samples"_"min" $
+
+Le nombre `5` est arbitraire et a été choisi pour avoir une meilleure précision.
+
+Voici la différence entre le nombre d'échantillons en utilisant cette formule vs l'utilisation 
+de la fenêtre complète de `0.05 secondes`.
+
+#table(
+  columns: (auto, auto, auto, auto),
+  inset: 10pt,
+  align: horizon,
+  table.header(
+	[$"sample_rate"$], [$ N_"samples" = 5 * N_"samples"_"min" $], [Fenêtre de `0.05 secondes`], [Rapport],
+	[$8"kHz"$], [57], [400], [$14%$],
+	[$44.1"kHz"$], [316], [22050], [$1.4%$]
+  ), 
+)
 
 #pagebreak()
 
 = Résultats
-
 
 == Should Be Easy To Decode
 
@@ -335,12 +375,11 @@ temporelle par corrélation parvient à identifier correctement
 les touches, même en présence d’un bruit important ou
 d’un bruit artificiel peu réaliste.  
 
-Cette robustesse s’explique par le fait que la corrélation
-exploite directement la forme du signal dans le temps, ce
-qui permet de détecter des motifs caractéristiques même
-lorsqu’ils sont partiellement masqués par du bruit.
+Cette robustesse s’explique par les contraintes du système qui nous
+permet de s'aligner avec le signal très facilement, une fois qu'on sait
+où les pressions peuvent être, la moitié du travail est déjà effectué.
 
-Cependant, le décodeur fréquentiel reste supérieur en toutes
+Le décodeur fréquentiel reste supérieur en toutes
 circonstances. Grâce à l’utilisation de la Transformée
 de Fourier, il identifie avec précision les fréquences
 dominantes, offrant un décodage stable et fiable,
@@ -348,6 +387,7 @@ y compris en présence de bruit. Son efficacité est due à sa
 capacité à isoler les composantes fréquentielles du signal,
 ce qui le rend plus robuste face aux variations
 d’intensité ou aux déformations temporelles du signal d’entrée.  
+
 Il est surtout plus fiable lorsqu'il n'est pas possible de
 s'aligner parfaitement avec le signal.
 Dans de telles situations, l'analyse fréquentielle
@@ -375,8 +415,14 @@ const double time_taken = ((double)t) / CLOCKS_PER_SEC;
 printf("Decoding alone took %g seconds\n", time_taken);
 ```
 
+#pagebreak()
+
 *Hard To Decode*
 
+#block(
+	fill: luma(230),
+	inset: 8pt,
+	radius: 4pt,
 ```bash
 > hyperfine "./build/dtmf_encdec decode audio/hard_to_decode.wav" --shell=none --warmup 10
 Benchmark 1: ./build/dtmf_encdec decode audio/hard_to_decode.wav
@@ -392,27 +438,47 @@ Benchmark 1: ./build/dtmf_encdec decode_time_domain audio/hard_to_decode.wav
  
   Warning: Statistical outliers were detected. Consider re-running this benchmark on a quiet system without any interferences from other programs. It might help to use the '--warmup' or '--prepare' options.
 ```
+)
 
 
 Mesurer la performance de notre décodeur avec un signal si
 court n'est pas la meilleure idée, car il est difficile d'avoir
 des résultats consistents.
 De plus, la partie plus intéressant - le décodage - est surpassé
-par des autres tâches comme la lecture du fichier `wave`. ce qui peut être vu lors que la sortie `stdout` n'est pas consommé:
+par des autres tâches comme la lecture du fichier `wave`. Ce qui peut être vu lors que la sortie `stdout` n'est pas consommé:
 
 
+#block(
+	fill: luma(230),
+	inset: 8pt,
+	radius: 4pt,
 ```bash
 > time ./build/dtmf_encdec decode audio/hard_to_decode.wav
 Using 0.899973 as silence amplitude threshold
 Decoding alone took 0.001628 seconds
 Decoded: hard to decode
 ./build/dtmf_encdec decode audio/hard_to_decode.wav  0.00s user 0.00s system 88% cpu 0.004 total
+```
+)
+
+Ici, nous pouvons voir que, avec le décodeur en domaine fréquentiel, le décodage prend environ `1.6ms` alors que le programme prend `4ms`.
+
+
+#block(
+	fill: luma(230),
+	inset: 8pt,
+	radius: 4pt,
+```bash
 > time ./build/dtmf_encdec decode_time_domain audio/hard_to_decode.wav
 Using 0.899973 as silence amplitude threshold
 Decoding alone took 0.000246 seconds
 Decoded: hard to decode
 ./build/dtmf_encdec decode_time_domain audio/hard_to_decode.wav  0.00s user 0.00s system 85% cpu 0.003 total
 ```
+)
+
+Avec le décodeur en domaine temporel, la différence est encore plus flagrante. Le décodage prend environ `0.2ms` alors que le programme prend `3ms`.
+
 
 Avec ces deux outils il est possible d'estimer que le décodage avec l'analyse linéaire est environ `6.58` fois plus rapide que le décodage avec l'analyse fréquentielle.
 
@@ -423,9 +489,12 @@ Le programme en soit tourne `1.8` fois plus rapidement.
 *Crashing is not allowed*
 
 Vu la longeur du signal `crashing_is_not_allowed` il est 
-possible d'avoir des résultats plus fiables pour nos décodeurs.
+possible d'avoir des résultats plus fiables.
 
-
+#block(
+	fill: luma(230),
+	inset: 8pt,
+	radius: 4pt,
 ```bash
 > hyperfine "./build/dtmf_encdec decode audio/crashing_is_not_allowed_\\\!.wav" --shell=none --warmup 10
 Benchmark 1: ./build/dtmf_encdec decode audio/crashing_is_not_allowed_\!.wav
@@ -437,7 +506,12 @@ Benchmark 1: ./build/dtmf_encdec decode_time_domain audio/crashing_is_not_allowe
   Time (mean ± σ):      28.9 ms ±   0.3 ms    [User: 14.0 ms, System: 14.7 ms]
   Range (min … max):    28.1 ms …  29.7 ms    102 runs
 ```
+)
 
+#block(
+	fill: luma(230),
+	inset: 8pt,
+	radius: 4pt,
 ```bash
 > time ./build/dtmf_encdec decode audio/crashing_is_not_allowed_\!.wav
 Using 0.359832 as silence amplitude threshold
@@ -450,7 +524,11 @@ Decoding alone took 0.013742 seconds
 Decoded: crashing is not allowed !
 ./build/dtmf_encdec decode_time_domain audio/crashing_is_not_allowed_!.wav  0.01s user 0.01s system 98% cpu 0.030 total
 ```
+)
 
-Ici lanalyse linéaire est environ `25` fois plus rapide que le décodage avec l'analyse fréquentielle.
+Maintenant, pour le décodage en domaine fréquentiel, le programme passe la plupart du temps à decoder, ce qui est attendu.
+Le décodage dans le domaine temporel est toujours très rapide, sûrement à cause de la taille réduite du nombre d'échantillons.
+
+Ici le décodage linéaire est environ `25` fois plus rapide que le décodage avec l'analyse fréquentielle.
 
 Le programme en soit tourne `12.6` fois plus rapidement.
