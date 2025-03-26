@@ -5,7 +5,16 @@
 
 = Topology CPU
 
-En utilisant l'outil `likwid-topology`, il est possible de voir la topologie du cpu:
+`lstopo` nous permet de voir la topologie de l'ordinateur de façon graphique.
+
+```bash
+lstopo
+```
+
+#figure(image("media/lstopo.png"), caption: [Topologie CPU])
+
+
+`likwid` contient aussi un outil permettant de voir la topologie du système.
 
 ```bash
 likwid-topology
@@ -120,6 +129,7 @@ Error: At least one workgroup (-w) must be set on commandline
 ```
 
 Dommage :(.
+
 En retournant sur la documentation, nous pouvons voir qu'un groupe de travail est défini
 comme: `<domain>:<size>:<nrThreads>`
 
@@ -142,4 +152,200 @@ Avec:
 
 *Domain* 
 
-Comme sur l'exemple de la page help, `S0` indique Core 0, `S1` doit indiquer Core 1
+En revenant encore sur la topology, en ajoutant l'argument `-g`:
+
+```bash
+> likwid-topology -g
+...
+********************************************************************************
+Graphical Topology
+********************************************************************************
+Socket 0:
+
++--------+ +--------+ +--------+ +--------+ +--------+ +--------+ +--------+ +--------+
+|  0 1   | |  2 3   | |  4 5   | |  6 7   | |  8 9   | | 10 11  | | 12 13  | | 14 15  |
++--------+ +--------+ +--------+ +--------+ +--------+ +--------+ +--------+ +--------+
++--------+ +--------+ +--------+ +--------+ +--------+ +--------+ +--------+ +--------+
+|  32 kB | |  32 kB | |  32 kB | |  32 kB | |  32 kB | |  32 kB | |  32 kB | |  32 kB |
++--------+ +--------+ +--------+ +--------+ +--------+ +--------+ +--------+ +--------+
++--------+ +--------+ +--------+ +--------+ +--------+ +--------+ +--------+ +--------+
+|  1 MB  | |  1 MB  | |  1 MB  | |  1 MB  | |  1 MB  | |  1 MB  | |  1 MB  | |  1 MB  |
++--------+ +--------+ +--------+ +--------+ +--------+ +--------+ +--------+ +--------+
++-------------------------------------------------------------------------------------+
+|                                        16 MB                                        |
++-------------------------------------------------------------------------------------+
+```
+
+Nous constantons que nous avons seulement un socket - `S0`.
+
+*Size*
+
+Comme ici nous sommes intéressés par le nombre d'opérations de calcul, il est important de limiter cette taille pour pouvoir limiter les accès à la mémoire principale. Plus précisement, il serait important de trouver une quantité de données qui ne dépasse pas la taille de la cache L1.
+
+Comme la taille de la cache L1 est de `32kB`, prennons la moitié (`16kB`) pour garantir que cette contrainte est satisfaite.
+
+*Num Threads*
+
+Comme l'encodeur `dtmf` n'utilise qu'un seul thread, il est important de limiter le workgroup aussi à `1` thread. Sinon, des comparaisons futures avec la performance de ce logiciel ne seraient pas très parlantes.
+
+#line(length: 100%)
+
+En mettant tout ensemble:
+
+```bash
+> likwid-bench -t peakflops -s 10 -W S0:16KB:1
+Cycles:			3312336588
+CPU Clock:		3293751626
+Cycle Clock:		3293751626
+Time:			1.005642e+00 sec
+Iterations:		262144
+Iterations per thread:	262144
+Inner loop executions:	3000
+Size (Byte):		24000
+Size per thread:	24000
+Number of Flops:	12582912000
+MFlops/s:		12512.31
+Data volume (Byte):	6291456000
+MByte/s:		6256.16
+Cycles per update:	4.211854
+Cycles per cacheline:	33.694830
+Loads per update:	1
+Stores per update:	0
+Load bytes per element:	8
+Store bytes per elem.:	0
+Instructions:		15728640032
+UOPs:			14942208000
+```
+
+Ici, l'information qui nous intéresse est :
+
+```bash
+MFlops/s:		12512.31
+```
+
+Comme `AMD` ne fournit pas des informations sur le CPU spécifique, il est difficile d'évaluer si cette valeur est bonne ou non.
+
+Nous pouvons par contre comparer avec l'horloge de la CPU qui est à `5.13GHz`, cela veut dire que nous arrivons à calculer
+
+$ 12.512 / 5.13 = 2.439 "opérations par cycle d'horloge" $
+
+Ce qui est très positif. Notons que nous pouvons et nous nous attendons à avoir plus que 1 opération par cycle d'horloge grâce aux microarchitectures modernes qui nous permettent d'effectuer plusieurs opérations en parallèle.
+
+Notons que ce calcul n'est pas très fiable, très probablement ce calcul n'est pas très fiable. Notamment, le cpu n'a probablement pas travaillé à sa vitesse maximale pendant le test. 
+
+== Bande Passante Mémoire
+
+La même procédure peut être effectué que précedemment. Pour la mesure de la mémoire nous avons un groupe de tests de copie :
+
+```bash
+> likwid-bench -a
+copy - Double-precision vector copy, only scalar operations
+copy_avx - Double-precision vector copy, optimized for AVX
+copy_avx512 - Double-precision vector copy, optimized for AVX-512
+copy_mem - Double-precision vector copy, only scalar operations but with non-temporal stores
+copy_mem_avx - Double-precision vector copy, uses AVX and non-temporal stores
+copy_mem_avx512 - Double-precision vector copy, uses AVX-512 and non-temporal stores
+copy_mem_sse - Double-precision vector copy, uses SSE and non-temporal stores
+copy_sse - Double-precision vector copy, optimized for SSE
+```
+
+Pour les paramètres du groupe, la même logique peut être suivi pour les paramètres *domain* et *num threads* mais doit être adapté pour le paramètre *size*. En effet, pour calculer la bande passante mémoire, il faut que la taille dépasse la taille des mémoire cache. Pour cela, utilisons une grande valeur, par exemple `512MB`.
+
+
+```bash
+likwid-bench -t copy -w S0:512MB:1
+Cycles:			3486906027
+CPU Clock:		3291635204
+Cycle Clock:		3291635204
+Time:			1.059323e+00 sec
+Iterations:		64
+Iterations per thread:	64
+Inner loop executions:	8000000
+Size (Byte):		512000000
+Size per thread:	512000000
+Number of Flops:	0
+MFlops/s:		0.00
+Data volume (Byte):	32768000000
+MByte/s:		30932.95
+Cycles per update:	1.702591
+Cycles per cacheline:	13.620727
+Loads per update:	1
+Stores per update:	1
+Load bytes per element:	8
+Store bytes per elem.:	8
+Load/store ratio:	1.00
+Instructions:		5632000016
+UOPs:			7168000000
+```
+
+Ici ce qui nous intéresse c'est la ligne:
+
+```bash
+MByte/s:		30932.95
+```
+
+Comme `AMD` ne fournit pas des informations sur le CPU spécifique, il est difficile d'évaluer si cette valeur est bonne ou non.
+
+Avec `lshw`, nous pouvons voir la vitesse de la mémoire DDR et voir qu'elle tourne à `6.4GHz`
+
+```bash
+sudo lshw -short -C memory
+H/W path              Device          Class          Description
+================================================================
+/0/0                                  memory         512KiB L1 cache
+/0/1                                  memory         8MiB L2 cache
+/0/2                                  memory         16MiB L3 cache
+/0/5                                  memory         32GiB System Memory
+/0/5/0                                memory         8GiB Synchronous Unbuffered (Unregistered) 6400 MHz (0.2 ns)
+/0/5/1                                memory         8GiB Synchronous Unbuffered (Unregistered) 6400 MHz (0.2 ns)
+/0/5/2                                memory         8GiB Synchronous Unbuffered (Unregistered) 6400 MHz (0.2 ns)
+/0/5/3                                memory         8GiB Synchronous Unbuffered (Unregistered) 6400 MHz (0.2 ns)
+/0/15                                 memory         128KiB BIOS
+```
+
+Nous sommes donc à:
+
+$ 30.9 / 6.4 = 4.82 "accès par cycle d'horloge" $
+
+En réalité, les valeurs sont encore biasés par le faite que, même avec une taille de travail plus grande que la mémoire cache, il y aura tout de même des `hit` qui vont survenir ce qui va accèlerer considérablement le nombre d'accès que nous effectuons.
+
+Finalement, en modifiant le taille du groupe de travail, nous pouvons observer les capacités des mémoire L1, L2 et L3.
+
+
+```bash
+likwid-bench -t copy -w S0:4KB:1
+likwid-bench -t copy -w S0:512KB:1
+likwid-bench -t copy -w S0:12MB:1
+```
+
+Ce qui nous donne les résultats suivants:
+
+#table(
+  columns: ( 0.25fr, 0.25fr, 0.25fr),
+  inset: 10pt,
+  align: horizon,
+  table.header(
+    [*Cible*], [*Taille*], [*MByte/s*],
+  ),
+  [L1], [`4KB`], [78554.84],
+  [L2], [`512KB`],[77244.33],
+  [L3], [`12MB`], [69010.02],
+  [DDRAM], [`512MB`], [30932.95]
+)
+
+#line(length: 100%)
+
+Une fois ces deux valeurs trouvées, nous pouvons trouver notre *roofline*:
+
+```txt
+12512.31
+30932.95
+```
+
+Et lancer le script fourni:
+
+```bash
+python roofline_gen.py
+```
+
+#figure(image("media/roofline.png"), caption: [Modèle Roofline])
