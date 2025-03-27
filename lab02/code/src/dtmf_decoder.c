@@ -95,7 +95,6 @@ static char *dtmf_decode_internal(dtmf_t *dtmf,
 	const size_t len =
 		is_power_of_2(min_len) ? min_len : align_to_power_of_2(min_len);
 
-	LIKWID_MARKER_START("decode_memory_init");
 	cplx_t *buffer = calloc(len, sizeof(*buffer));
 	if (!buffer) {
 		printf("Failed to allocate memory for decode\n");
@@ -110,8 +109,8 @@ static char *dtmf_decode_internal(dtmf_t *dtmf,
 	}
 	float target_amplitude = 0;
 
-	LIKWID_MARKER_STOP("decode_memory_init");
-	LIKWID_MARKER_START("decode_find_start_of_file");
+	LIKWID_MARKER_REGISTER("decode1");
+	LIKWID_MARKER_START("decode1");
 	ssize_t start =
 		find_start_of_file(dtmf, buffer, len, &target_amplitude);
 	if (start < 0) {
@@ -120,16 +119,16 @@ static char *dtmf_decode_internal(dtmf_t *dtmf,
 		buffer_terminate(&result);
 		return NULL;
 	}
-	LIKWID_MARKER_STOP("decode_find_start_of_file");
+	LIKWID_MARKER_STOP("decode1");
 
 	/* This cast is safe as per the check above*/
 	size_t i = (size_t)start;
 
+	LIKWID_MARKER_REGISTER("decode");
 	LIKWID_MARKER_START("decode");
 	dtmf_button_t *btn = NULL;
 	size_t consecutive_presses = 0;
 	while ((i + len) < dtmf->buffer.len) {
-		LIKWID_MARKER_START("decode_is_silence");
 		/* First check for silence */
 		if (is_silence((float *)dtmf->buffer.data + i, len,
 			       target_amplitude)) {
@@ -140,18 +139,13 @@ static char *dtmf_decode_internal(dtmf_t *dtmf,
 			assert(btn);
 			push_decoded(btn, &result, &consecutive_presses);
 			i += samples_to_skip_on_silence;
-			LIKWID_MARKER_STOP("decode_is_silence");
 			continue;
 		}
-		LIKWID_MARKER_STOP("decode_is_silence");
-
-		LIKWID_MARKER_START("decode_button");
 		/* No silence here, decode the button */
 		dtmf_button_t *new_btn =
 			decode_button_fn((float *)dtmf->buffer.data + i, buffer,
 					 len, dtmf->sample_rate);
 
-		LIKWID_MARKER_STOP("decode_button");
 		/* 
 		 * Failed to decode the button so this must be noise,
 		 * the last button and the number of presses indicates the character to decode
