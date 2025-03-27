@@ -349,3 +349,154 @@ python roofline_gen.py
 ```
 
 #figure(image("media/roofline.png"), caption: [Modèle Roofline])
+
+
+== Profiling
+
+Une fois le `roofline` trouvé, il nous est temps de profiler notre code.
+
+Pour cela je m'intéresse nottament à deux parties du décodage.
+
+- La recherche du début du fichier
+- Le décodage des pressions
+
+Pour les détails de ces deux parties, se référer au rapport du laboratoire précedent.
+
+En se basant sur le guide forunit, j'ai commencé par chercher les groupes de mesure disponibles:
+```bash
+> likwid-perfctr -a
+Group name	Description
+--------------------------------------------------------------------------------
+  BRANCH	Branch prediction miss rate/ratio
+   CACHE	Data cache miss rate/ratio
+   CLOCK	Cycles per instruction
+     CPI	Cycles per instruction
+    DATA	Load to store ratio
+  DIVIDE	Divide unit information
+  ENERGY	Power and Energy consumption
+FLOPS_DP	Double Precision MFLOP/s
+FLOPS_SP	Single Precision MFLOP/s
+  ICACHE	Instruction cache miss rate/ratio
+      L2	L2 cache bandwidth in MBytes/s (experimental)
+ L2CACHE	L2 cache miss rate/ratio (experimental)
+      L3	L3 cache bandwidth in MBytes/s
+ L3CACHE	L3 cache miss rate/ratio (experimental)
+ MEMREAD	Main memory read bandwidth in MBytes/s
+MEMWRITE	Main memory write bandwidth in MBytes/s
+    NUMA	Socket interconnect and NUMA traffic
+     TLB	TLB miss rate/ratio
+```
+
+Pour mon architecture, `likwid` a déjà les groupes nécessaires pour trouver les valeurs d'intensité opérationelle et le nombre d'opérations à virgule flottante.
+
+=== Efficacité Operationnelle
+
+
+Pour la suite des mesures, nous cherchons le nombre d'opérations et l'efficacité operationnelle.
+
+L'efficacité operationnelle est donnée par la formule:
+$ I = W / Q $
+
+et désigne le nombre d'opérations par octet de trafic mémoire.
+
+Lorsque le travail `W` est exprimé en FLOPs, l'intensité arithmétique `I` qui en résulte est le rapport entre les opérations en virgule flottante et le mouvement total des données (FLOPs/octet). 
+
+=== Profiling FFT
+
+L'algorithme FFT qui avait été démontré comme le moins performant lors du laboratoire précedent peut être lancé avec
+
+```bash
+dtmf_encdec decode <sound_file.wav>
+```
+
+Pour le profiler nous pouvons le lancer avec:
+
+```bash
+likwid-perfctr -C S0:8 -g FLOPS_SP -m ./dtmf_encdec decode ../../../lab01/audio/crashing_is_not_allowed_\!.wav
+likwid-perfctr -C S0:8 -g MEMREAD -m ./dtmf_encdec decode ../../../lab01/audio/crashing_is_not_allowed_\!.wav
+```
+
+L'utilisation de `S0:8` permet de bloquer l'utilisation sur le thread 8. C'est un choix arbitraire, le seul point important est de ne pas utiliser le core 0 car sur linux est le core qui va recevoir
+la plupart des IRQs du système ce qui biasera les résultats du benchmarking.
+
+Et voici les résultats.
+
+#table(
+  columns: ( 0.25fr, 0.25fr, 0.25fr, 0.25fr),
+  inset: 10pt,
+  align: horizon,
+  table.header(
+    [*Marker*], [*FLOPS_SP [MFLOP/s]*], [*MEMREAD [MByte/s]*], [*Efficacité Operationnelle*],
+  ),
+  [Find Start Of File], [1202.2479], [772.2337], [1.56],
+  [Decode], [1577.2761], [1254.0197], [1.26],
+)
+
+=== Profiling Correlation
+
+L'algorithme de corrélation linéaire qui avait été démontré comme le moins performant lors du laboratoire précedent peut être lancé avec
+
+
+```bash
+dtmf_encdec decode <sound_file.wav>
+```
+
+Pour le profiler nous pouvons le lancer avec:
+
+```bash
+likwid-perfctr -C S0:8 -g FLOPS_SP -m ./dtmf_encdec decode_time_domain ../../../lab01/audio/crashing_is_not_allowed_\!.wav
+likwid-perfctr -C S0:8 -g MEMREAD -m ./dtmf_encdec decode_time_domain ../../../lab01/audio/crashing_is_not_allowed_\!.wav
+```
+
+#table(
+  columns: ( 0.25fr, 0.25fr, 0.25fr, 0.25fr),
+  inset: 10pt,
+  align: horizon,
+  table.header(
+    [*Marker*], [*FLOPS_SP [MFLOP/s]*], [*MEMREAD [MByte/s]*], [*Efficacité Operationnelle*],
+  ),
+  [Find Start Of File], [1448.3669], [631.8976], [2.29],
+  [Decode], [844.8329], [5541.2554], [0.15],
+)
+
+
+#line(length: 100%)
+
+
+Une fois ces valeurs mesurés, il est possible de trouver notre `baseline` pour les deux algorithmes:
+
+```
+12512.31
+30932.95
+1.26 1577.2761 fft
+0.15 844.8329 correlation
+```
+
+#figure(image("media/baseline.png"), caption: [Baseline])
+
+Dans ces mesures, l'algorithme de corrélation présente une efficacité opérationnelle inférieure à celle de l'algorithme FFT. Cela peut sembler contre-intuitif au premier abord, mais une explication simple existe.
+
+Puisque les accès mémoire restent similaires – en raison de la nécessité de parcourir l'intégralité du fichier audio – la bande passante demeure inchangée, tandis que le nombre d'opérations réalisées par l'algorithme de corrélation diminue. Paradoxalement, cet algorithme s'avère pourtant 12 fois plus rapide que la FFT, ce qui met en évidence les limites de cette métrique pour évaluer correctement la performance.
+
+En poussant l'analyse plus loin, on comprend la véritable signification de l’efficacité opérationnelle et la raison de sa valeur relativement basse pour un algorithme pourtant performant. En effet, bien que la quantité de données accessibles soit la même pour les deux algorithmes, la corrélation effectue moins de calculs. Cela engendre des accès mémoire sous-exploités, réduisant ainsi artificiellement l’efficacité mesurée.
+
+== Améliorations Possibles
+Voici quelques pistes d’amélioration possibles :  
+
+- *Optimisation du compilateur* : Le code a été compilé avec l’option `-O0`, car il a été fourni ainsi par l’assistant. Activer un niveau d’optimisation plus élevé permettrait d’améliorer significativement les performances.  
+- *Réduction de la taille des fenêtres de calcul* : L’algorithme effectue un grand nombre d’opérations sur les données. En diminuant la taille des fenêtres de calcul, il serait possible d’accélérer son exécution.  
+- *Vectorisation* : Certains calculs pourraient être optimisés en utilisant des techniques de vectorisation comme `SIMD`, permettant d’exploiter plus efficacement les ressources du processeur.  
+- *Parallélisation* : L’exploitation du calcul parallèle pourrait considérablement accélérer les algorithmes.  
+  - Pour l’algorithme de corrélation, le calcul de la corrélation avec chaque bouton pourrait être parallélisé.  
+  - Pour l’algorithme FFT, l’analyse de certaines fenêtres en parallèle permettrait de parcourir le fichier plus rapidement.
+
+
+= Conclusion
+
+Ce laboratoire a permis d’analyser la performance du processeur en combinant *modèle Roofline, profiling détaillé et outils LIKWID*.
+
+`likwid-bench` a permis de mesurer le nombre possible les FLOPs, l’utilisation du cache et la bande passante de mon cpu alors que avec `likwid-perctr` et les _markers_ `likwid` m'ont permis de facilement profiler le code développé précedemment.
+
+Pour améliorer la performance, plusieurs optimisations sont envisageables : *vectorisation SIMD, parallélisation multi-thread, optimisation de la localité des données et compilation avancée*.  
+
+En conclusion, cette approche a permis de mieux comprendre les limites matérielles et d’identifier des stratégies pour optimiser les performances des applications exécutées sur ce processeur.
