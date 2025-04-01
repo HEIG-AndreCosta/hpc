@@ -484,11 +484,11 @@ En poussant l'analyse plus loin, on comprend la véritable signification de l’
 
 Voici quelques pistes d’amélioration possibles :  
 
-- *Optimisations du compilateur*
-- *Réduction de la taille des fenêtres de calcul*
-- *Changement d'algorithme* 
-- *Vectorisation*
-- *Parallélisation*
+- Optimisations du compilateur
+- Réduction de la taille des fenêtres de calcul
+- Changement d'algorithme 
+- Vectorisation
+- Parallélisation
 
 === Optimisations du compilateur
 
@@ -504,20 +504,24 @@ Actuellement, l'algorithme de décodage utilise une fenêtre de `0.05` secondes.
 
 Cependant, cette taille de fenêtre pourrait ne pas être optimale. La durée minimale requise pour une analyse efficace devrait être déterminée par la période maximale du signal généré, qui dépend de la fréquence minimale du système :
 
-$ P_{max} = \frac{1}{F_{min}} $
+$ P_"max" = 1 / F_"min" $
 
 Avec :
-- $ F_{min} = 697 \text{ Hz} $
+- $ F_"min" = 697 "Hz" $
 
 Nous obtenons :
 
-$ P_{max} = 0.0014 \text{ s} $
+$ P_"max" = 0.0014 s $
 
 Cette valeur est bien inférieure à la fenêtre actuelle (`0.05` s), indiquant une possibilité de réduction importante du temps de calcul. 
 
-*Optimisations possibles* :
+Optimisations possibles :
 - Réduction progressive de la fenêtre de l’algorithme de corrélation jusqu’à atteindre la véritable fenêtre minimale requise.
 - Réduction de la fenêtre utilisée dans l’analyse fréquentielle pour améliorer les performances.
+
+Notons que cette optimisation est déjà partiellement mise en œuvre pour l'algorithme de corrélation linéaire.
+Pour assurer le bon fonctionnement du système, j'avais initialement choisi une fenêtre cinq fois plus grande que la taille minimale requise.
+Cependant, il serait possible de réduire encore cette valeur, comme mentionné précédemment, afin d'améliorer davantage les performances.
 
 === Changement d'algorithme
 
@@ -533,20 +537,21 @@ Certains calculs pourraient être optimisés grâce à la vectorisation via `SIM
 
 L'algorithme traite souvent des ensembles de données similaires de manière répétitive, ce qui est idéal pour une implémentation SIMD. En appliquant des instructions vectorielles, il serait possible d'exécuter plusieurs opérations en parallèle sur différentes données, réduisant ainsi le temps d'exécution.
 
-= Parallélisation
+=== Parallélisation
 
 L’exploitation du calcul parallèle pourrait considérablement accélérer les algorithmes. Plusieurs opportunités de parallélisation sont envisageables :
 
 Pour l'algorithme de décodage temporel, le calcul de la corrélation pour chaque touche pourrait être parallélisé, en exécutant les calculs sur plusieurs threads.
-  - Plus précisement, en dispatchant le calcul de corrélation en 11 threads différents pour, un thread par touche.
+  - Plus précisement, en dispatchant le calcul de corrélation en 11 threads différents - un thread par touche.
 
 Pour les deux algorithmes, l’analyse de différentes fenêtres en parallèle permettrait, en théorie, de traiter le signal plus rapidement.
 Toutefois, l’algorithme présente certaines contraintes, car le choix de la fenêtre suivante dépend du résultat courant :
-- Si une touche est détectée, la prochaine fenêtre se situe `0.2` secondes plus tard.
-- Si aucune touche n'est trouvée, la prochaine fenêtre est `0.15` secondes plus tard.
+- Si une touche est détectée, la prochaine fenêtre à analyser se situe `0.25` secondes plus tard.
+- Si aucune touche n'est trouvée, la prochaine fenêtre à analyser se situe `0.15` secondes plus tard.
 
-Une solution pourrait être de pré-calculer ces deux fenêtres possibles, permettant ainsi de pré-calculer en avance quelle fenêtre prendre une fois l'acutel terminée.
+Une solution pourrait être de pré-calculer ces deux fenêtres possibles, permettant ainsi de savoir _en avance_ quelle fenêtre prendre une fois l'actuel terminée.
 
+#pagebreak()
 = Conclusion
 
 Ce laboratoire a permis d’analyser la performance du processeur en combinant *modèle Roofline, profiling détaillé et outils LIKWID*.
