@@ -335,3 +335,10 @@ void cprop4(int* a, size_t n, int* flag) {
 )
 
 Grâce à l’optimisation manuelle combinée à l’optimisation du compilateur, celui-ci peut appliquer des transformations plus agressives. Il supprime toute vérification de `*flag` ou de `i < n` dans le corps de boucle et transforme le tout en un simple parcours de mémoire avec décalage (`sal`). Ce type de code est *beaucoup plus efficace* car il élimine des instructions inutiles et réduit la charge de travail du processeur lors de l’exécution.
+
+
+= Exemple 3 - Predictive Commoning 
+
+Source: #link("https://godbolt.org/z/8W4njcE7W")[Godbolt - Inline Function]
+
+
