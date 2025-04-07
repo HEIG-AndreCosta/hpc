@@ -1,4 +1,3 @@
-
 = Introduction
 
 = Exemple 1 - return
@@ -36,7 +35,12 @@ int cprop1(int a) {
 	ret
 ```]
 )
-TODO Parler que c'est du code standard vu quand les gens commencent à programmer cf cours de prg1 et prg2
+
+Ce code est typique de ce que l’on retrouve dans les premiers cours de programmation (PRG1 et PRG2).
+On y voit une structure conditionnelle simple avec un `if/else` explicite.
+Le compilateur traduit ça littéralement avec des instructions de branchement (`jle`, `jmp`),
+ce qui est très lisible, mais pas encore optimisé.
+
 
 #line(length:100%)
 
@@ -65,7 +69,12 @@ int cprop2(int a) {
 ```]
 )
 
-TODO Parler du code qui devient beaucoup plus clair, et qu'évite une instruction de branchement ce qui permet à la pipeline du processeur de ne pas se casser la figure
+Ce code est beaucoup plus concis et lisible. En écrivant `return a > 10`, on élimine l’usage
+explicite de `if/else` et donc les instructions de branchement.
+Le compilateur peut directement utiliser l’instruction `setg` qui place un booléen (`1` ou `0`)
+dans un registre selon le résultat de la comparaison. Cela permet d’éviter les branchements
+conditionnels, ce qui améliore les performances, notamment en maintenant le pipeline du
+processeur plus fluide.
 
 #line(length:100%)
 
@@ -94,9 +103,15 @@ int cprop1(int a) {
 ```]
 )
 
-TODO parler que la version optimisé suit la même logique que celle de la version manuellement optimisé où le compilateur évite des branchements inutiles
+Même si le code source est resté dans sa version non optimisée, l’activation de l’optimisation
+`-O1` du compilateur GCC permet d’obtenir un résultat très proche de la version manuellement
+optimisée. Le compilateur détecte que la structure `if/else` peut être réduite à une expression
+booléenne simple, et génère un code plus performant, sans branchement.
 
-TODO trouver le flag gcc qui permet d'ajouter cette optimisation
+L’optimisation ici est automatiquement activée via les options du compilateur,
+comme `-O1`, `-O2` ou `-O3`.
+Ces flags indiquent au compilateur de générer du code plus efficace, avec des optimisations comme
+la suppression des branchements inutiles, l'inlining de fonctions, etc.
 
 
 = Exemple 2 - inline
