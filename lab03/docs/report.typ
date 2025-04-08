@@ -446,4 +446,233 @@ Cela montre que le comportement de `-O1` est plus complexe que la simple additio
 et il peut y avoir des interactions non documentées entre elles.
 
 
+= Partie 2 - DTMF
+
+Pour cette deuxième partie, je vais me pencher sur l'optimisation du encodeur/décodeur DTMF développé dans le cadre du laboratoire 1.
+
+En lisant le code du décodeur `dtmf_decoder.c`, il y a quelques optimisations qui peuvent être ressorties sans aller trop loin.
+
+== Quick Math
+
+Source: #link("https://godbolt.org/z/1Gv3joacK")[Godbolt - Quick Math]
+
+=== Version Originale
+
+#table(
+columns: (.5fr, 1fr),
+align:horizon,
+[*Code C*],
+[*Code Assembleur*],
+[```c
+        *amplitude = *amplitude - (*amplitude / 10);
+```],[
+```asm
+        mov     rax, QWORD PTR [rbp-8]
+        movss   xmm0, DWORD PTR [rax]
+        mov     rax, QWORD PTR [rbp-8]
+        movss   xmm1, DWORD PTR [rax]
+        movss   xmm2, DWORD PTR .LC0[rip]
+        divss   xmm1, xmm2
+        subss   xmm0, xmm1
+        mov     rax, QWORD PTR [rbp-8]
+        movss   DWORD PTR [rax], xmm0
+```]
+)
+
+Ici, on observe que l'expression `*amplitude = *amplitude - (*amplitude / 10);`
+est traduite en assembleur par une division suivie d'une soustraction,
+ce qui représente deux opérations flottantes séparées.
+Pourtant, cette opération est mathématiquement équivalente à une multiplication par `0.9f`.
+Ce type de réécriture permet non seulement de simplifier le code source, mais aussi de générer un code assembleur plus efficace.
+
+=== Version Manuellement Optimisée
+
+#table(
+columns: (.5fr, 1fr),
+align:horizon,
+[*Code C*],
+[*Code Assembleur*],
+[```c
+        *amplitude *= 0.9f;
+```],[
+
+```asm
+        mov     rax, QWORD PTR [rbp-8]
+        movss   xmm1, DWORD PTR [rax]
+        movss   xmm0, DWORD PTR .LC1[rip]
+        mulss   xmm0, xmm1
+        mov     rax, QWORD PTR [rbp-8]
+        movss   DWORD PTR [rax], xmm0
+```]
+)
+
+Dans cette version manuellement optimisée, on remplace l'expression par une multiplication directe avec `0.9f`. Le compilateur génère alors un code bien plus concis : une seule multiplication est utilisée, ce qui réduit la complexité des calculs à effectuer. Cela améliore non seulement les performances mais simplifie aussi la lecture du code.
+
+Il est important ici d’utiliser le suffixe `f` (`0.9f`) pour s'assurer que la constante est bien interprétée comme un `float`. Sans ce suffixe, la constante est considérée comme un `double`, ce qui a un impact sur le code généré: 
+
+#table(
+columns: (.5fr, 1fr),
+align:horizon,
+[*Code C*],
+[*Code Assembleur*],
+[```c
+        *amplitude *= 0.9;
+```],[
+```asm
+        mov     rax, QWORD PTR [rbp-8]
+        movss   xmm0, DWORD PTR [rax]
+        cvtss2sd        xmm1, xmm0
+        movsd   xmm0, QWORD PTR .LC2[rip]
+        mulsd   xmm0, xmm1
+        cvtsd2ss        xmm0, xmm0
+        mov     rax, QWORD PTR [rbp-8]
+        movss   DWORD PTR [rax], xmm0
+```]
+)
+
+Ce code est plus lourd car :
+
+- La valeur float est convertie en double (`cvtss2sd`)
+- La multiplication est effectuée en double précision (`mulsd`)
+- Le résultat est ensuite reconverti en float (`cvtsd2ss`)
+
+En somme, omettre le `f` oblige le processeur à effectuer plusieurs conversions inutiles, 
+ce qui nuit à la performance.
+
+=== Version de base - Optimisée par le compilateur (-O3)
+
+#table(
+columns: (.5fr, 1fr),
+align:horizon,
+[*Code C*],
+[*Code Assembleur*],
+[```c
+    *amplitude = *amplitude - (*amplitude / 10);
+```],[
+```asm
+        movss   xmm0, DWORD PTR [rdi]
+        movaps  xmm1, xmm0
+        divss   xmm1, DWORD PTR .LC0[rip]
+        subss   xmm0, xmm1
+        movss   DWORD PTR [rdi], xmm0
+```]
+)
+
+Malgré l’activation des optimisations agressives via l’option `-O3`, le compilateur choisit de ne pas réécrire l’opération `*amplitude = *amplitude - (*amplitude / 10);` en une simple multiplication par `0.9f`. Il effectue toujours la division suivie de la soustraction, comme dans la version non optimisée.
+
+Cela peut paraître surprenant, mais cette décision du compilateur est probablement liée aux problèmes de précision liés aux opérations en virgule flottante. En effet, une division par 10 suivie d’une soustraction peut donner un résultat légèrement différent d’une multiplication directe par `0.9f` à cause des arrondis introduits à chaque étape.
+
+Comme le standard C impose que les optimisations ne doivent pas modifier le résultat visible d’un programme (sauf en présence d’`-ffast-math` ou autres options flottantes spécifiques), le compilateur joue la prudence et préserve l’ordre exact des opérations.
+
+En applicant le flag `-ffast-math`, nous arrivons à faire le compilateur remplacer notre calcul par une multiplication:
+
+```asm
+        movss   xmm0, DWORD PTR .LC1[rip]
+        mulss   xmm0, DWORD PTR [rdi]
+        movss   DWORD PTR [rdi], xmm0
+```
+
+Une autre façon de forcer la simplification, est d’écrire directement `*amplitude *= 0.9f;` dans le code source.
+Dans ce cas, le compilateur utilise bien une seule instruction `mulss`,
+ce qui réduit les cycles CPU et améliore les performances sans risque de comportement inattendu -
+du moment que l'erreur d'arrondi est tolérable dans le contexte de l'application.
+
+== Optimisation des branchements
+
+Source: #link("https://godbolt.org/z/h5dsM385W")[Godbolt - Optimisation des branchements]
+
+La fonction `is_valid_frequency` détermine si la fréquence passé en paramère appartient à la plage des fréquences possibles pour le dtmf.
+
+=== Version Originale
+
+#table(
+columns: (.5fr, 1fr),
+align:horizon,
+[*Code C*],
+[*Code Assembleur*],
+[```c
+bool is_valid_frequency(uint32_t freq)
+{
+	return freq > MIN_FREQ && freq < MAX_FREQ;
+}
+```],[
+```asm
+        push    rbp
+        mov     rbp, rsp
+        mov     DWORD PTR [rbp-4], edi
+        cmp     DWORD PTR [rbp-4], 650
+        jbe     .L2
+        cmp     DWORD PTR [rbp-4], 1499
+        ja      .L2
+        mov     eax, 1
+        jmp     .L3
+.L2:
+        mov     eax, 0
+.L3:
+        and     eax, 1
+        pop     rbp
+        ret
+```]
+)
+
+Dans cette version du code, nous observons que le compilateur fait usage de plusieurs instructions
+de branchements conditionnels pour vérifier si la fréquence (`freq`) est supérieure à `MIN_FREQ` et
+inférieure à `MAX_FREQ`. Comme discuté précedemment, éviter des branchements conditionnels,
+améliore les performances, notamment en maintenant le pipeline du processeur plus fluide.
+
+Nous pouvons remplacer ces vérifications conditionnelles par des opérations mathématiques.
+
+=== Version Manuellement Optimisée
+
+#table(
+columns: (.5fr, 1fr),
+align:horizon,
+[*Code C*],
+[*Code Assembleur*],
+[```c
+bool is_valid_frequency(uint32_t freq)
+{
+        return (freq - MIN_FREQ - 1) <= (MAX_FREQ - MIN_FREQ - 2);
+}
+```],[
+```asm
+        mov     eax, DWORD PTR [rbp-4]
+        sub     eax, 651
+        cmp     eax, 848
+        setbe   al
+```]
+)
+
+Avec cette optimisation, les branchements conditionnels sont supprimés, ce qui améliore les performances en évitant des sauts dans la pipeline du processeur. Le code devient plus rapide, notamment lorsque la fonction est appelée fréquemment. Cependant, cette approche rend le code moins lisible et plus difficile à comprendre, car la logique est condensée en une seule opération mathématique, ce qui peut déstabiliser un lecteur moins familier avec ces optimisations.
+
+Pour cette raison, nous allons préférer la version originale, lisible et laisser le compilateur
+faire le travail d'optimisations lui-même.
+
+=== Version Originale - Optimisée par le compilateur (-O1)
+
+#table(
+columns: (.5fr, 1fr),
+align:horizon,
+[*Code C*],
+[*Code Assembleur*],
+[```c
+bool is_valid_frequency(uint32_t freq)
+{
+	return freq > MIN_FREQ && freq < MAX_FREQ;
+}
+```],[
+```asm
+        sub     edi, 651
+        cmp     edi, 848
+        setbe   al
+```]
+)
+
+Ce type d'optimisation est assez simple à réaliser pour le compilateur,
+qui peut transformer une comparaison avec des bornes en une soustraction et une comparaison
+plus simples. L’avantage de cette approche est qu'elle conserve un code lisible et clair,
+tout en offrant de bonnes performances. C’est précisément ce pour quoi nous utilisons des
+outils de compilation : pour maintenir un code propre et compréhensible sans sacrifier
+l’efficacité d’exécution.
+
 
