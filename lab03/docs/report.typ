@@ -802,6 +802,8 @@ C’est donc une boucle difficile à vectoriser, et ce n’est pas étonnant que
 
 De plus, comme expliqué lors du laboratoire précedent, cette partie de code pourrait être optimisé en parallélisant le calcul des correlations dans plusieurs threads.
 
+#pagebreak()
+
 = Conclusion
 
 Mon analyse des différentes optimisations de compilation révèle plusieurs points importants:
