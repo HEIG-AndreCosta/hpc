@@ -113,7 +113,7 @@ comme `-O1`, `-O2` ou `-O3`.
 
 = Exemple 2 - Outsmarting
 
-Source: #link("https://godbolt.org/z/97b7h9qoc")[Godbolt - Outsmarting]
+Source: #link("https://godbolt.org/z/887MW959r")[Godbolt - Outsmarting]
 
 == Version de base - Pas d'optimisations
 
@@ -285,11 +285,14 @@ void cprop3(int* a, size_t n, int* flag) {
 ```]
 )
 
-Contrairement à ce que l'on pourrait penser, même avec les options `-O1` et `-fstrict-aliasing`,
+Contrairement à ce que l'on pourrait penser, même avec les options `-O1`, `-fstrict-aliasing` et `-fmove-all-movables`,
 le compilateur ne comprend pas que la valeur de `*flag` reste constante pendant l'exécution de
 la boucle. Il continue donc à vérifier `*flag` à chaque itération. Autrement dit,
 l'optimisation attendue — déplacer la vérification de `*flag` en dehors de la boucle —
-n'est pas appliquée automatiquement ici, malgré les indices donnés au compilateur. Cela montre que, dans ce cas, une optimisation manuelle reste nécessaire pour éliminer les vérifications redondantes.
+n'est pas appliquée automatiquement ici, malgré les indices donnés au compilateur.
+Cela montre que, dans ce cas, une optimisation manuelle reste nécessaire pour éliminer les vérifications redondantes.
+
+Comme quoi l'homme n'est toujours pas dépassé vis-à-vis les machines :).
 
 #line(length:100%)
 
@@ -331,9 +334,10 @@ void cprop4(int* a, size_t n, int* flag) {
 ```]
 )
 
-Grâce à l’optimisation manuelle combinée à l’optimisation du compilateur, celui-ci peut appliquer des transformations plus agressives. Il supprime toute vérification de `*flag` ou de `i < n` dans le corps de boucle et transforme le tout en un simple parcours de mémoire avec décalage (`sal`). Ce type de code est *beaucoup plus efficace* car il élimine des instructions inutiles et réduit la charge de travail du processeur lors de l’exécution.
+Grâce à l’optimisation manuelle combinée à l’optimisation du compilateur, celui-ci peut appliquer des transformations plus agressives. Il supprime toute vérification de `*flag`
+dans le corps de boucle et transforme le tout en un simple parcours de mémoire avec décalage (`sal`).
+Ce type de code est *beaucoup plus efficace* car il élimine des instructions inutiles et réduit la charge de travail du processeur lors de l’exécution.
 
 
-= Exemple 3 - Predictive Commoning 
 
 Source: #link("https://godbolt.org/z/8W4njcE7W")[Godbolt - Inline Function]
