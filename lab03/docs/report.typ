@@ -36,10 +36,10 @@ int cprop1(int a) {
 ```]
 )
 
-Ce code est typique de ce que l’on retrouve dans les premiers cours de programmation (PRG1 et PRG2).
+Ce code est typique de ce que l’on retrouve dans les premiers cours de programmation (cf. PRG1 et PRG2).
 On y voit une structure conditionnelle simple avec un `if/else` explicite.
 Le compilateur traduit ça littéralement avec des instructions de branchement (`jle`, `jmp`),
-ce qui est très lisible, mais pas encore optimisé.
+ce qui est très lisible, mais pas optimisé.
 
 
 #line(length:100%)
@@ -110,9 +110,6 @@ booléenne simple, et génère un code plus performant, sans branchement.
 
 L’optimisation ici est automatiquement activée via les options du compilateur,
 comme `-O1`, `-O2` ou `-O3`.
-Ces flags indiquent au compilateur de générer du code plus efficace, avec des optimisations comme
-la suppression des branchements inutiles, l'inlining de fonctions, etc.
-
 
 = Exemple 2 - Outsmarting
 
