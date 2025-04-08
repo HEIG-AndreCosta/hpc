@@ -5,7 +5,14 @@
 #outline(title: "Table des matières", depth: 3, indent: 15pt)
 
 #pagebreak()
+
 = Introduction
+
+Ce rapport présente une analyse des optimisations de compilation en langage C, réalisée dans le cadre du laboratoire 3 de High Performance Coding.
+Nous examinerons trois exemples d'optimisations, en comparant systématiquement pour chacun: une version non optimisée, une version optimisée manuellement,
+et une version optimisée par le compilateur.
+
+À l'aide de l'outil Compiler Explorer, nous analyserons le code assembleur généré pour comprendre les mécanismes d'optimisation et identifier les situations où l'intervention manuelle peut s'avérer bénéfique. Dans une seconde partie, nous appliquerons ces principes à l'optimisation du décodeur DTMF développé lors du laboratoire 1.
 
 = Exemple 1 - Boolean Returns
 
@@ -681,3 +688,16 @@ plus simples. L’avantage de cette approche est qu'elle conserve un code lisibl
 tout en offrant de bonnes performances. C’est précisément ce pour quoi nous utilisons des
 outils de compilation : pour maintenir un code propre et compréhensible sans sacrifier
 l’efficacité d’exécution.
+
+= Conclusion
+
+Mon analyse des différentes optimisations de compilation révèle plusieurs points importants:
+
+Le compilateur peut effectuer de nombreuses optimisations sophistiquées automatiquement, particulièrement avec les options d'optimisation appropriées.
+Cependant, il peut parfois se montrer conservateur, évitant certaines transformations qui pourraient théoriquement modifier le comportement du programme.
+
+Comprendre les propriétés fondamentales du code que l'on écrit permet de produire un code plus facile à optimiser pour le compilateur.
+Le cas du décodeur DTMF a démontré comment des optimisations simples peuvent avoir un impact significatif sur les performances.
+
+Bien que les compilateurs modernes soient de plus en plus sophistiqués, la capacité à écrire du code "compiler-friendly" reste une compétence essentielle
+pour les programmeurs visant des performances optimales, permettant de faire des choix éclairés dans le compromis entre lisibilité et efficacité.
