@@ -339,5 +339,111 @@ dans le corps de boucle et transforme le tout en un simple parcours de mémoire 
 Ce type de code est *beaucoup plus efficace* car il élimine des instructions inutiles et réduit la charge de travail du processeur lors de l’exécution.
 
 
+= Exemple 3 - Propriétés mathématiques
 
-Source: #link("https://godbolt.org/z/8W4njcE7W")[Godbolt - Inline Function]
+Source: #link("https://godbolt.org/z/6v1Y7GTfr")[Godbolt - Inline Function]
+
+== Version de base - Pas d'optimisations
+
+#table(
+columns: (.5fr, 1fr),
+align:horizon,
+[*Code C*],
+[*Code Assembleur*],
+[```c
+int square3(int b)
+{
+    if(b < 0)
+    {
+        b = -b;
+    }
+    return b*b;
+}
+```],[
+```asm
+        push    rbp
+        mov     rbp, rsp
+        mov     DWORD PTR [rbp-4], edi
+        cmp     DWORD PTR [rbp-4], 0
+        jns     .L2
+        neg     DWORD PTR [rbp-4]
+.L2:
+        mov     eax, DWORD PTR [rbp-4]
+        imul    eax, eax
+        pop     rbp
+        ret
+```]
+)
+
+Dans cet exemple, on observe que la condition `if (b < 0)` est utilisée pour rendre `b` positif avant de retourner `b * b`. Cependant, cette étape est *inutile*, car l'opération `b * b` renverra toujours le même résultat, qu’on utilise `b` ou `-b` : en effet, le carré d’un entier est toujours positif (ou nul), et `b * b == (-b) * (-b)`.
+
+En ajoutant cette condition, on complique inutilement le code avec une instruction de branchement (`jns`) et une négation (`neg`) qui pourraient être évitées. Ces instructions nuisent à la performance, notamment au niveau de la prédiction de branchement dans le pipeline du processeur.
+
+Cet exemple illustre bien qu'une intuition "logique" en `C` n’est pas toujours synonyme de code optimal en assembleur — parfois, en voulant "corriger" quelque chose qui n'a pas besoin de l'être, on alourdit le programme.
+
+== Version manuellement optimisée
+
+#table(
+columns: (.5fr, 1fr),
+align:horizon,
+[*Code C*],
+[*Code Assembleur*],
+[```c
+int square2(int b)
+{
+    return b*b;
+}
+```],[
+```asm
+        push    rbp
+        mov     rbp, rsp
+        mov     DWORD PTR [rbp-4], edi
+        mov     eax, DWORD PTR [rbp-4]
+        imul    eax, eax
+        pop     rbp
+        ret
+```]
+)
+On constate ici qu’en retirant simplement le if, on obtient une version bien plus concise et directe du code. Le calcul b * b est effectué sans aucun test de signe, car comme expliqué précédemment, le carré d’un entier est le même que celui de sa valeur absolue.
+
+Cette version manuellement optimisée évite toute instruction de branchement ou de négation, ce qui permet un code assembleur plus simple, plus rapide et plus facile à optimiser pour le processeur. En plus, elle réduit la taille du binaire et améliore potentiellement la prédiction dans le pipeline d’exécution.
+
+== Version de base - Optimisé par le compilateur (-O1)
+
+#table(
+columns: (.5fr, 1fr),
+align:horizon,
+[*Code C*],
+[*Code Assembleur*],
+[```c
+int square3(int b)
+{
+    if(b < 0)
+    {
+        b = -b;
+    }
+    return b*b;
+}
+```],[
+```asm
+        imul    edi, edi
+        mov     eax, edi
+        ret
+```]
+)
+
+On remarque ici qu'avec l’option -O1, le compilateur parvient à optimiser le code de manière très efficace. Il a compris que le test if (b < 0) suivi de b = -b était superflu pour le calcul du carré, et a donc simplifié toute la fonction en une seule instruction de multiplication (imul) suivie d’un mov et d’un ret. Cela donne exactement le même résultat, tout en supprimant les instructions de branchement et de négation.
+
+Cette optimisation revient exactement à ce que nous aurions fait manuellement en supprimant le if dans le code source C, ce qui prouve que le compilateur peut, dans certaines circonstances, appliquer des simplifications mathématiques sûres.
+
+On pourrait penser qu’il est possible de retrouver ce comportement en activant les bonnes optimisations individuellement, mais ce n’est pas si simple.
+Par exemple, l’option `-fssa-backprop` que, selon la documentation peut être utilisée pour simplifier des calculs quand le signe d'une valeur n'est pas importante.
+#link("https://gcc.gnu.org/onlinedocs/gcc-9.1.0/gcc/Optimize-Options.html")[Source]. Cependant, activée seule, elle n’a aucun effet visible sans `-O1` ou supérieur, car elle dépend d'autres passes déjà actives dans ces niveaux d’optimisation.
+
+J’ai également testé en combinant manuellement toutes les options que GCC applique automatiquement avec `-O1`, comme listé sur
+#link("https://gcc.gnu.org/onlinedocs/gcc-9.1.0/gcc/Optimize-Options.html")[cette page], mais je n’ai pas réussi à obtenir exactement le même résultat.
+Cela montre que le comportement de `-O1` est plus complexe que la simple addition de drapeaux — certaines passes ne sont activées que lorsqu’un certain contexte d’optimisation est présent,
+et il peut y avoir des interactions non documentées entre elles.
+
+
+
