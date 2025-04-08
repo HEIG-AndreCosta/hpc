@@ -341,7 +341,7 @@ Ce type de code est *beaucoup plus efficace* car il élimine des instructions in
 
 = Exemple 3 - Propriétés mathématiques
 
-Source: #link("https://godbolt.org/z/6v1Y7GTfr")[Godbolt - Inline Function]
+Source: #link("https://godbolt.org/z/6v1Y7GTfr")[Godbolt - Propriétés mathématiques]
 
 == Version de base - Pas d'optimisations
 
