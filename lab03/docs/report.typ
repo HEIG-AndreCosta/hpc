@@ -1,3 +1,10 @@
+#include "title.typ"
+
+#pagebreak()
+
+#outline(title: "Table des matières", depth: 3, indent: 15pt)
+
+#pagebreak()
 = Introduction
 
 = Exemple 1 - Boolean Returns
@@ -674,5 +681,3 @@ plus simples. L’avantage de cette approche est qu'elle conserve un code lisibl
 tout en offrant de bonnes performances. C’est précisément ce pour quoi nous utilisons des
 outils de compilation : pour maintenir un code propre et compréhensible sans sacrifier
 l’efficacité d’exécution.
-
-
