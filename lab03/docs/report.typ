@@ -1,10 +1,10 @@
 = Introduction
 
-= Exemple 1 - return
+= Exemple 1 - Boolean Returns
 
 == Version de base - Pas d'optimisations
 
-Source: #link("https://godbolt.org/z/za7YdEab8")[Godbolt - Exemple Return]
+Source: #link("https://godbolt.org/z/za7YdEab8")[Godbolt - Exemple Boolean Returns]
 
 #table(
 columns: (.5fr, 1fr),
@@ -340,5 +340,3 @@ Grâce à l’optimisation manuelle combinée à l’optimisation du compilateur
 = Exemple 3 - Predictive Commoning 
 
 Source: #link("https://godbolt.org/z/8W4njcE7W")[Godbolt - Inline Function]
-
-
