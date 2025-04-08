@@ -711,6 +711,97 @@ tout en offrant de bonnes performances. C’est précisément ce pour quoi nous 
 outils de compilation : pour maintenir un code propre et compréhensible sans sacrifier
 l’efficacité d’exécution.
 
+== Autres idées pour le futur
+
+Lorsqu'on souhaite optimiser un programme en C, il est souvent utile de demander directement au compilateur ce qu’il n’a pas réussi à optimiser.
+Pour cela, on peut utiliser la commande suivante avec gcc :
+
+```bash
+gcc -O3 -g -fopt-info-missed=missed.txt -o dtmf_decoder.o -c dtmf_decoder.c 
+```
+
+Cette commande génère un fichier missed.txt contenant les optimisations que le compilateur a envisagées mais n’a pas pu appliquer,
+ce qui peut être une mine d’or pour améliorer manuellement certaines portions de code.
+
+Le fichier `missed.txt` contient également des remarques peu exploitables, notamment celles du type :
+
+```txt
+missed:   not inlinable: ... function body not available
+```
+Il est donc nécessaire de trier ces messages et de se concentrer sur ceux concernant des boucles non vectorisées, des appels de fonctions inlinables, ou encore des allocations mémoire optimisables.
+
+=== Exemple 1 - Boucle non vectorisée dans `is_silence`
+
+En lançant cette commande, le compilateur a signalé qu’il n’a pas pu vectoriser une boucle critique dans la fonction suivante :
+
+```c
+static bool is_silence(const float *buffer, size_t len, float target)
+{
+	for (size_t i = 0; i < len; ++i) {
+		if (buffer[i] >= target) {
+			return false;
+		}
+	}
+	return true;
+}
+```
+
+```text
+dtmf_decoder.c:251:23: missed: couldn't vectorize loop
+dtmf_decoder.c:252:13: missed: not vectorized: no vectype for stmt: _81 = *_80;
+ scalar_type: const float
+```
+
+Le compilateur ne trouve pas de type vectoriel adapté à cette opération car le type manipulé est `const float`.
+De plus, le retour anticipé difficulte aussi la vie au compilateur.
+
+Finalement, une possibilité serait d'essayer moi-même de vectoriser cette boucle mais pour cela, j'attends le prochain laboratoire :).
+
+#line(length:100%)
+
+=== Exemple 2 : Double boucle non vectorisée
+
+Un autre cas classique signalé par le compilateur :
+
+```text
+dtmf_decoder.c:348:23: missed: couldn't vectorize loop
+dtmf_decoder.c:348:23: missed: not vectorized: loop nest containing two or more consecutive inner loops cannot be vectorized
+dtmf_decoder.c:350:24: missed: couldn't vectorize loop
+dtmf_decoder.c:350:24: missed: not vectorized: loop nest containing two or more consecutive inner loops cannot be vectorized
+```
+
+La boucle correspondante :
+
+```c
+	for (size_t i = 0; i < ARRAY_LEN(ROW_FREQUENCIES); ++i) {
+		const uint16_t row_freq = ROW_FREQUENCIES[i];
+		for (size_t j = 0; j < ARRAY_LEN(COL_FREQUENCIES); ++j) {
+			const uint16_t col_freq = COL_FREQUENCIES[j];
+			const size_t index = i * ARRAY_LEN(COL_FREQUENCIES) + j;
+			const float corr = calculate_correlation(
+				signal, button_reference_signals[index],
+				nb_samples);
+
+			if (corr > best_corr) {
+				f1 = row_freq;
+				f2 = col_freq;
+				best_corr = corr;
+			}
+		}
+	}
+```
+
+Le compilateur explique qu’il ne peut pas vectoriser une boucle imbriquée contenant plusieurs sous-boucles consécutives.
+
+Notons que remplacer la double for ici pour une seule ne marcherait pas. Ceci parce que la fonction `calculate_correlation` qui est _inliné_ par le compilateur contient
+elle aussi des boucles.
+
+De plus, le contenu de la boucle contient des dépendances sur des résultats intermédiaires (best_corr, f1, f2).
+
+C’est donc une boucle difficile à vectoriser, et ce n’est pas étonnant que le compilateur ait échoué ici.
+
+De plus, comme expliqué lors du laboratoire précedent, cette partie de code pourrait être optimisé en parallélisant le calcul des correlations dans plusieurs threads.
+
 = Conclusion
 
 Mon analyse des différentes optimisations de compilation révèle plusieurs points importants:
