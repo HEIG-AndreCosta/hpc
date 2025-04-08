@@ -87,12 +87,12 @@ Ce code est beaucoup plus concis et lisible. En écrivant `return a > 10`, on é
 explicite de `if/else` et donc les instructions de branchement.
 Le compilateur peut directement utiliser l’instruction `setg` qui place un booléen (`1` ou `0`)
 dans un registre selon le résultat de la comparaison. Cela permet d’éviter les branchements
-conditionnels, ce qui améliore les performances, notamment en maintenant le pipeline du
+conditionnels, ce qui améliore les performances, notamment en maintenant la pipeline du
 processeur plus fluide.
 
 #line(length:100%)
 
-== Version de base - Optimisé par le compilateur (-O1)
+== Version de base - Optimisée par le compilateur (-O1)
 
 #table(
 columns: (.5fr, 1fr),
@@ -125,6 +125,7 @@ booléenne simple, et génère un code plus performant, sans branchement.
 L’optimisation ici est automatiquement activée via les options du compilateur,
 comme `-O1`, `-O2` ou `-O3`.
 
+#pagebreak()
 = Exemple 2 - Outsmarting
 
 Source: #link("https://godbolt.org/z/887MW959r")[Godbolt - Outsmarting]
@@ -132,7 +133,7 @@ Source: #link("https://godbolt.org/z/887MW959r")[Godbolt - Outsmarting]
 == Version de base - Pas d'optimisations
 
 #table(
-columns: (.5fr, 1fr),
+columns: (1fr, 1fr),
 align:horizon,
 [*Code C*],
 [*Code Assembleur*],
@@ -192,12 +193,12 @@ void cprop1(int* a, size_t n, int* flag) {
 
 Dans cette version, on constate que la valeur de `*flag` est vérifiée à chaque itération de la boucle. Or, l'opération effectuée sur le tableau est une simple multiplication par 2. Même dans le cas où un élément du tableau référencerait la même adresse mémoire que flag, cette opération ne peut pas faire basculer la valeur de `*flag` de 0 à une valeur non nulle, ou inversement, sauf dans un cas très particulier : si `*flag == 0x80000000`, la multiplication entraînerait un dépassement de capacité (overflow) et produirait 0. Toutefois, selon la norme C (ISO/IEC 9899:2018), chapitre 6.5, paragraphe 5, un dépassement lors d'opérations entières signées constitue un comportement indéfini (Undefined Behavior). En se basant sur cela, le compilateur est libre de supposer que `*flag` reste constant pendant toute la boucle. Il peut donc optimiser le code en testant `*flag` une seule fois avant la boucle, ce qui permet d’éliminer des comparaisons et branchements redondants. Cette optimisation est particulièrement bénéfique lorsque n est grand, car elle réduit considérablement le nombre d'instructions exécutées.
 
-#line(width:100%)
+#line(length:100%)
 
 == Version manuellement optimisée
 
 #table(
-columns: (.5fr, 1fr),
+columns: (1fr, 1fr),
 align:horizon,
 [*Code C*],
 [*Code Assembleur*],
@@ -258,11 +259,11 @@ cprop2:
 ```]
 )
 
-Ici, on supprime complètement la vérification de `*flag` dans la boucle. Elle est effectuée *une seule fois* avant le début de la boucle. Si `*flag == 0`, la fonction retourne immédiatement. Cela améliore énormément la performance, notamment dans les cas où `*flag` vaut 0 (le corps de la boucle est alors totalement évité). Même quand `*flag != 0`, cela reste bénéfique car on évite une comparaison et un branchement conditionnel à chaque itération. Sur de très grandes boucles, cela a un impact direct sur le nombre d'instructions exécutées et la pression sur le pipeline du processeur.
+Ici, on supprime complètement la vérification de `*flag` dans la boucle. Elle est effectuée *une seule fois* avant le début de la boucle. Si `*flag == 0`, la fonction retourne immédiatement. Cela améliore énormément la performance, notamment dans les cas où `*flag` vaut 0 (le corps de la boucle est alors totalement évité). Même quand `*flag != 0`, cela reste bénéfique car on évite une comparaison et un branchement conditionnel à chaque itération. Sur de très grandes boucles, cela a un impact direct sur le nombre d'instructions exécutées et la pression sur la pipeline du processeur.
 
 #line(length:100%)
 
-== Version de base - Optimisé par le compilateur (-O1 -fstrict-aliasing)
+== Version de base - Optimisée par le compilateur (-O1 -fstrict-aliasing)
 
 #table(
 columns: (.5fr, 1fr),
@@ -391,9 +392,11 @@ int square3(int b)
 
 Dans cet exemple, on observe que la condition `if (b < 0)` est utilisée pour rendre `b` positif avant de retourner `b * b`. Cependant, cette étape est *inutile*, car l'opération `b * b` renverra toujours le même résultat, qu’on utilise `b` ou `-b` : en effet, le carré d’un entier est toujours positif (ou nul), et `b * b == (-b) * (-b)`.
 
-En ajoutant cette condition, on complique inutilement le code avec une instruction de branchement (`jns`) et une négation (`neg`) qui pourraient être évitées. Ces instructions nuisent à la performance, notamment au niveau de la prédiction de branchement dans le pipeline du processeur.
+En ajoutant cette condition, on complique inutilement le code avec une instruction de branchement (`jns`) et une négation (`neg`) qui pourraient être évitées. Ces instructions nuisent à la performance, notamment au niveau de la prédiction de branchement dans la pipeline du processeur.
 
 Cet exemple illustre bien qu'une intuition "logique" en `C` n’est pas toujours synonyme de code optimal en assembleur — parfois, en voulant "corriger" quelque chose qui n'a pas besoin de l'être, on alourdit le programme.
+
+#line(length:100%)
 
 == Version manuellement optimisée
 
@@ -418,11 +421,12 @@ int square2(int b)
         ret
 ```]
 )
-On constate ici qu’en retirant simplement le if, on obtient une version bien plus concise et directe du code. Le calcul b * b est effectué sans aucun test de signe, car comme expliqué précédemment, le carré d’un entier est le même que celui de sa valeur absolue.
+On constate ici qu’en retirant simplement le if, on obtient une version bien plus concise et directe du code. Le calcul `b * b` est effectué sans aucun test de signe, car comme expliqué précédemment, le carré d’un entier est le même que celui de sa valeur absolue.
 
-Cette version manuellement optimisée évite toute instruction de branchement ou de négation, ce qui permet un code assembleur plus simple, plus rapide et plus facile à optimiser pour le processeur. En plus, elle réduit la taille du binaire et améliore potentiellement la prédiction dans le pipeline d’exécution.
+Cette version manuellement optimisée évite toute instruction de branchement ou de négation, ce qui permet un code assembleur plus simple, plus rapide et plus facile à optimiser pour le processeur. En plus, elle réduit la taille du binaire et améliore potentiellement la prédiction dans la pipeline d’exécution.
 
-== Version de base - Optimisé par le compilateur (-O1)
+#line(length:100%)
+== Version de base - Optimisée par le compilateur (-O1)
 
 #table(
 columns: (.5fr, 1fr),
@@ -460,6 +464,8 @@ Cela montre que le comportement de `-O1` est plus complexe que la simple additio
 et il peut y avoir des interactions non documentées entre elles.
 
 
+#pagebreak()
+
 = Partie 2 - DTMF
 
 Pour cette deuxième partie, je vais me pencher sur l'optimisation du encodeur/décodeur DTMF développé dans le cadre du laboratoire 1.
@@ -473,12 +479,13 @@ Source: #link("https://godbolt.org/z/1Gv3joacK")[Godbolt - Quick Math]
 === Version Originale
 
 #table(
-columns: (.5fr, 1fr),
+columns: (.9fr, 1fr),
 align:horizon,
 [*Code C*],
 [*Code Assembleur*],
 [```c
-        *amplitude = *amplitude - (*amplitude / 10);
+*amplitude = 
+  *amplitude - (*amplitude / 10);
 ```],[
 ```asm
         mov     rax, QWORD PTR [rbp-8]
@@ -499,7 +506,9 @@ ce qui représente deux opérations flottantes séparées.
 Pourtant, cette opération est mathématiquement équivalente à une multiplication par `0.9f`.
 Ce type de réécriture permet non seulement de simplifier le code source, mais aussi de générer un code assembleur plus efficace.
 
-=== Version Manuellement Optimisée
+#line(length:100%)
+
+=== Version manuellement Optimisée
 
 #table(
 columns: (.5fr, 1fr),
@@ -507,7 +516,7 @@ align:horizon,
 [*Code C*],
 [*Code Assembleur*],
 [```c
-        *amplitude *= 0.9f;
+*amplitude *= 0.9f;
 ```],[
 
 ```asm
@@ -524,13 +533,14 @@ Dans cette version manuellement optimisée, on remplace l'expression par une mul
 
 Il est important ici d’utiliser le suffixe `f` (`0.9f`) pour s'assurer que la constante est bien interprétée comme un `float`. Sans ce suffixe, la constante est considérée comme un `double`, ce qui a un impact sur le code généré: 
 
+#pagebreak()
 #table(
 columns: (.5fr, 1fr),
 align:horizon,
 [*Code C*],
 [*Code Assembleur*],
 [```c
-        *amplitude *= 0.9;
+*amplitude *= 0.9;
 ```],[
 ```asm
         mov     rax, QWORD PTR [rbp-8]
@@ -553,15 +563,18 @@ Ce code est plus lourd car :
 En somme, omettre le `f` oblige le processeur à effectuer plusieurs conversions inutiles, 
 ce qui nuit à la performance.
 
+#line(length:100%)
+
 === Version de base - Optimisée par le compilateur (-O3)
 
 #table(
-columns: (.5fr, 1fr),
+columns: (.95fr, 1fr),
 align:horizon,
 [*Code C*],
 [*Code Assembleur*],
 [```c
-    *amplitude = *amplitude - (*amplitude / 10);
+*amplitude =
+  *amplitude - (*amplitude / 10);
 ```],[
 ```asm
         movss   xmm0, DWORD PTR [rdi]
@@ -591,6 +604,7 @@ Dans ce cas, le compilateur utilise bien une seule instruction `mulss`,
 ce qui réduit les cycles CPU et améliore les performances sans risque de comportement inattendu -
 du moment que l'erreur d'arrondi est tolérable dans le contexte de l'application.
 
+
 == Optimisation des branchements
 
 Source: #link("https://godbolt.org/z/h5dsM385W")[Godbolt - Optimisation des branchements]
@@ -600,14 +614,15 @@ La fonction `is_valid_frequency` détermine si la fréquence passé en paramère
 === Version Originale
 
 #table(
-columns: (.5fr, 1fr),
+columns: (1fr, 1fr),
 align:horizon,
 [*Code C*],
 [*Code Assembleur*],
 [```c
 bool is_valid_frequency(uint32_t freq)
 {
-	return freq > MIN_FREQ && freq < MAX_FREQ;
+        return freq > MIN_FREQ &&
+                freq < MAX_FREQ;
 }
 ```],[
 ```asm
@@ -632,21 +647,24 @@ bool is_valid_frequency(uint32_t freq)
 Dans cette version du code, nous observons que le compilateur fait usage de plusieurs instructions
 de branchements conditionnels pour vérifier si la fréquence (`freq`) est supérieure à `MIN_FREQ` et
 inférieure à `MAX_FREQ`. Comme discuté précedemment, éviter des branchements conditionnels,
-améliore les performances, notamment en maintenant le pipeline du processeur plus fluide.
+améliore les performances, notamment en maintenant la pipeline du processeur plus fluide.
 
 Nous pouvons remplacer ces vérifications conditionnelles par des opérations mathématiques.
+
+#line(length:100%)
 
 === Version Manuellement Optimisée
 
 #table(
-columns: (.5fr, 1fr),
+columns: (1fr, 1fr),
 align:horizon,
 [*Code C*],
 [*Code Assembleur*],
 [```c
 bool is_valid_frequency(uint32_t freq)
 {
-        return (freq - MIN_FREQ - 1) <= (MAX_FREQ - MIN_FREQ - 2);
+  return (freq - MIN_FREQ - 1) <=
+          (MAX_FREQ - MIN_FREQ - 2);
 }
 ```],[
 ```asm
@@ -662,17 +680,21 @@ Avec cette optimisation, les branchements conditionnels sont supprimés, ce qui 
 Pour cette raison, nous allons préférer la version originale, lisible et laisser le compilateur
 faire le travail d'optimisations lui-même.
 
+#line(length:100%)
+
+#pagebreak()
 === Version Originale - Optimisée par le compilateur (-O1)
 
 #table(
-columns: (.5fr, 1fr),
+columns: (1fr, 1fr),
 align:horizon,
 [*Code C*],
 [*Code Assembleur*],
 [```c
 bool is_valid_frequency(uint32_t freq)
 {
-	return freq > MIN_FREQ && freq < MAX_FREQ;
+        return freq > MIN_FREQ &&
+                freq < MAX_FREQ;
 }
 ```],[
 ```asm
