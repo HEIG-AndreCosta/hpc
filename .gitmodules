@@ -1,0 +1,3 @@
+[submodule "lab04/code/lib/stb"]
+	path = lab04/code/lib/stb
+	url = https://github.com/nothings/stb.git
