@@ -1,17 +1,8 @@
 #include "k-means.h"
 #include <math.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-
-// This function will calculate the euclidean distance between two pixels.
-// Instead of using coordinates, we use the RGB value for evaluating distance.
-float distance(uint8_t *p1, uint8_t *p2)
-{
-	float r_diff = p1[0] - p2[0];
-	float g_diff = p1[1] - p2[1];
-	float b_diff = p1[2] - p2[2];
-	return sqrt(r_diff * r_diff + g_diff * g_diff + b_diff * b_diff);
-}
 
 // Function to initialize cluster centers using the k-means++ algorithm
 void kmeans_pp(struct img_t *image, int num_clusters, uint8_t *centers)
@@ -25,8 +16,8 @@ void kmeans_pp(struct img_t *image, int num_clusters, uint8_t *centers)
 	centers[0 + G_OFFSET] = image->data[first_center + G_OFFSET];
 	centers[0 + B_OFFSET] = image->data[first_center + B_OFFSET];
 
-	float *distances =
-		(float *)malloc(image->width * image->height * sizeof(float));
+	uint32_t *distances = (uint32_t *)malloc(image->width * image->height *
+						 sizeof(uint32_t));
 
 	// Calculate distances from each pixel to the first center
 	uint8_t *dest = malloc(image->components * sizeof(uint8_t));
@@ -37,7 +28,7 @@ void kmeans_pp(struct img_t *image, int num_clusters, uint8_t *centers)
 		memcpy(src, image->data + i * image->components,
 		       image->components * sizeof(uint8_t));
 
-		distances[i] = distance(src, dest) * distance(src, dest);
+		distances[i] = distance_single_pixel(src, dest);
 
 		free(src);
 	}
@@ -82,8 +73,7 @@ void kmeans_pp(struct img_t *image, int num_clusters, uint8_t *centers)
 			memcpy(src, image->data + j * image->components,
 			       image->components * sizeof(uint8_t));
 
-			float dist = distance(src, new_center) *
-				     distance(src, new_center);
+			const uint32_t dist = distance_single_pixel(src, dest);
 
 			if (dist < distances[j]) {
 				distances[j] = dist;
@@ -126,7 +116,7 @@ void kmeans(struct img_t *image, int num_clusters)
 			memcpy(dest, centers + c * image->components,
 			       image->components * sizeof(uint8_t));
 
-			float dist = distance(src, dest);
+			const uint32_t dist = distance_single_pixel(src, dest);
 
 			if (dist < min_dist) {
 				min_dist = dist;

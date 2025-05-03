@@ -24,6 +24,7 @@ int main(int argc, char **argv)
 	img = load_image(argv[1]);
 
 	printf("Image loaded!\n");
+	printf("Image Components: %d\n", img->components);
 
 	kmeans(img, nb_cluster);
 
