@@ -34,7 +34,7 @@ void distance_simd(uint8_t *p1, uint8_t *p2, uint32_t *result)
 	_mm_storeu_si128((__m128i *)(tmp + 8), sq_hi);
 
 	for (size_t i = 0; i < 4; ++i) {
-		size_t idx = i * 4;
-		result[i] = tmp[idx] + tmp[idx + 1] + tmp[idx + 2]; // R + G + B
+		size_t j = i * 4;
+		result[i] = tmp[j] + tmp[j + 1] + tmp[j + 2];
 	}
 }
