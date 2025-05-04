@@ -1,6 +1,7 @@
 #include "k-means.h"
 #include <math.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -8,31 +9,25 @@
 void kmeans_pp(struct img_t *image, int num_clusters, uint8_t *centers)
 {
 	// Select a random pixel as the first cluster center
-	int first_center =
+	int first_center_index =
 		(rand() % (image->width * image->height)) * image->components;
 
 	// Set the RGB values of the first center
-	centers[0 + R_OFFSET] = image->data[first_center + R_OFFSET];
-	centers[0 + G_OFFSET] = image->data[first_center + G_OFFSET];
-	centers[0 + B_OFFSET] = image->data[first_center + B_OFFSET];
+	centers[0 + R_OFFSET] = image->data[first_center_index + R_OFFSET];
+	centers[0 + G_OFFSET] = image->data[first_center_index + G_OFFSET];
+	centers[0 + B_OFFSET] = image->data[first_center_index + B_OFFSET];
 
 	uint32_t *distances = (uint32_t *)malloc(image->width * image->height *
 						 sizeof(uint32_t));
 
 	// Calculate distances from each pixel to the first center
-	uint8_t *dest = malloc(image->components * sizeof(uint8_t));
-	memcpy(dest, centers, image->components * sizeof(uint8_t));
+	uint8_t *first_center = malloc(image->components * sizeof(uint8_t));
+	memcpy(first_center, centers, image->components * sizeof(uint8_t));
 
 	for (int i = 0; i < image->width * image->height; ++i) {
-		uint8_t *src = malloc(image->components * sizeof(uint8_t));
-		memcpy(src, image->data + i * image->components,
-		       image->components * sizeof(uint8_t));
-
-		distances[i] = distance_single_pixel(src, dest);
-
-		free(src);
+		uint8_t *src = image->data + i * image->components;
+		distances[i] = distance_single_pixel(src, first_center);
 	}
-	// free(dest);
 
 	// Loop to find remaining cluster centers
 	for (int i = 1; i < num_clusters; ++i) {
@@ -62,29 +57,20 @@ void kmeans_pp(struct img_t *image, int num_clusters, uint8_t *centers)
 			image->data[index * image->components + B_OFFSET];
 
 		// Update distances based on the new center
-		uint8_t *new_center =
-			malloc(image->components * sizeof(uint8_t));
-		memcpy(new_center, centers + i * image->components,
-		       image->components * sizeof(uint8_t));
+		uint8_t *new_center = centers + i * image->components;
 
-		for (int j = 0; j < image->width * image->height; j++) {
-			uint8_t *src =
-				malloc(image->components * sizeof(uint8_t));
-			memcpy(src, image->data + j * image->components,
-			       image->components * sizeof(uint8_t));
+		for (size_t j = 0; j < image->width * image->height; j++) {
+			uint8_t *src = image->data + j * image->components;
 
-			const uint32_t dist = distance_single_pixel(src, dest);
+			float dist = distance_single_pixel(src, new_center);
 
 			if (dist < distances[j]) {
 				distances[j] = dist;
 			}
-
-			free(src);
 		}
-
-		free(new_center);
 	}
 
+	free(first_center);
 	free(distances);
 }
 
@@ -106,17 +92,12 @@ void kmeans(struct img_t *image, int num_clusters)
 		float min_dist = INFINITY;
 		int best_cluster = -1;
 
-		uint8_t *src = malloc(image->components * sizeof(uint8_t));
-		memcpy(src, image->data + i * image->components,
-		       image->components * sizeof(uint8_t));
+		uint8_t *src = image->data + i * image->components;
 
 		for (int c = 0; c < num_clusters; c++) {
-			uint8_t *dest =
-				malloc(image->components * sizeof(uint8_t));
-			memcpy(dest, centers + c * image->components,
-			       image->components * sizeof(uint8_t));
+			uint8_t *dest = centers + c * image->components;
 
-			const uint32_t dist = distance_single_pixel(src, dest);
+			float dist = distance_single_pixel(src, dest);
 
 			if (dist < min_dist) {
 				min_dist = dist;
