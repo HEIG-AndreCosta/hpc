@@ -103,9 +103,8 @@ void kmeans(struct img_t *image, int num_clusters)
 				min_dist = dist;
 				best_cluster = c;
 			}
-
-			assignments[i] = best_cluster;
 		}
+		assignments[i] = best_cluster;
 	}
 
 	ClusterData *cluster_data =
