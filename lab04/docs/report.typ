@@ -8,6 +8,62 @@
 
 = Introduction
 
+Ce projet explore l'optimisation des performances à travers l'utilisation des instructions SIMD (Single Instruction, Multiple Data) dans trois domaines distincts.
+La première partie se concentre sur l'optimisation d'un algorithme de segmentation d'image, spécifiquement l’implémentation de K-means.
+La deuxième partie explore l’accélération SIMD d’un algorithme libre choisi pour des données variées.
+Enfin, la troisième partie aborde l'optimisation SIMD sur du code personnalisé, visant à améliorer l'efficacité des traitements en temps réel, comme la détection de signaux.
+
+Ainsi, ce projet propose une approche progressive de l’optimisation des performances, à travers une analyse et une amélioration de traitements existants, puis en explorant l'implémentation
+et l’optimisation à travers les instructions SIMD sur des algorithmes variés.
+
+= Quick start guide
+
+Pour chaque partie, le code peut être compilé à l'aide du `CMakeLists.txt` fournit:
+
+== Partie 1
+
+```bash
+cd code/part1
+cmake -B build -S .
+make -C build -j$(nproc)
+```
+
+4 executables sont créées:
+
+- `segmentation_original`: Version originale
+- `segmentation` : Version optimisé sans SIMD - *A utiliser pour le concours :)*
+- `segmentation_simd`: Version optimisée avec SIMD 
+- `test_simd`: Petite application de test pour vérifier la fonction `distance_simd`
+
+== Partie 2
+
+```bash
+cd code/part2
+cmake -B build -S .
+make -C build -j$(nproc)
+```
+
+3 executables sont créées:
+
+- `grayscale` : Application qui convertit une image en entrée et la converti en grayscale
+  - Version séquentielle
+- `grayscale_simd`: Application qui convertit une image en entrée et la converti en grayscale
+  - Version optimisée avec SIMD 
+- `test` : Application de test qui calcule aussi les performances des deux implémentations
+
+== Partie 3
+```bash
+cd code/part3
+cmake -B build -S .
+make -C build -j$(nproc)
+```
+
+1 executables est créé:
+
+- `dtmf_encdec`: Application DTMF
+
+#pagebreak()
+
 = Analyse et amélioration
 
 Tout d'abord il faut déjà vérifier la performance de l'application de départ.
@@ -154,6 +210,7 @@ Cette optimisation n’est pas uniquement due à l’utilisation de SIMD. Elle e
 
 L'ensemble de ces changements contribue à un gain de performance global très significatif.
 
+#pagebreak()
 
 = Implémentation SIMD libre d'un algorithme
 
@@ -162,8 +219,8 @@ Principe de l'algorithme
 
 L'algorithme de conversion en niveaux de gris repose sur une formule de luminance perceptuelle qui tient compte de la sensibilité de l'œil humain aux différentes composantes de couleur. La formule standard utilisée est :
 
-$R_"out" = G_"out" = B_"out" = R_"in" * 0.299 + G_"in" * 0.587 + B_"in" * 0.114$
-$A_"out" = A_"in"$
+$ R_"out" = G_"out" = B_"out" = R_"in" * 0.299 + G_"in" * 0.587 + B_"in" * 0.114 $
+$ A_"out" = A_"in" $
 
 Cette formule est appliquée à chaque pixel de l'image, où :
 
@@ -196,6 +253,7 @@ La méthode SIMD comporte les étapes suivantes :
 6. Écriture des résultats dans le buffer
 
 == Programme de test
+
 Pour évaluer et comparer les deux implémentations, j'ai développé un programme de test qui :
 
 1. Génère une image test avec des pixels aléatoires en format RGBA
