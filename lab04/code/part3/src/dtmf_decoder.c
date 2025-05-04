@@ -248,12 +248,12 @@ static float get_max_amplitude(const float *buffer, size_t len)
 
 static bool is_silence(const float *buffer, size_t len, float target)
 {
-	__m256 target_vec = _mm256_set1_ps(target);
-
-	size_t i = 0;
-	for (; i + 7 < len; i += 8) {
-		__m256 data_vec = _mm256_loadu_ps(&buffer[i]);
-		__m256 cmp_vec =
+	const __m256 target_vec = _mm256_set1_ps(target);
+	const size_t n = len - (len % 8);
+	size_t i;
+	for (i = 0; i < n; i += 8) {
+		const __m256 data_vec = _mm256_loadu_ps(&buffer[i]);
+		const __m256 cmp_vec =
 			_mm256_cmp_ps(data_vec, target_vec, _CMP_GE_OS);
 		/* If any value is >= target, cmp_vec will be all zeros */
 		if (_mm256_testz_si256(_mm256_castps_si256(cmp_vec),
