@@ -62,7 +62,7 @@ void kmeans_pp(struct img_t *image, int num_clusters, uint8_t *centers)
 		for (size_t j = 0; j < image->width * image->height; j++) {
 			uint8_t *src = image->data + j * image->components;
 
-			float dist = distance_single_pixel(src, new_center);
+			uint32_t dist = distance_single_pixel(src, new_center);
 
 			if (dist < distances[j]) {
 				distances[j] = dist;
