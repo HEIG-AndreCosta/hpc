@@ -8,21 +8,28 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(SEG_SRC_COMMON
     src/main.c
     src/image.c
-    src/k-means-common.c
 )
+set(SEG_SRC_ORIGINAL
+    ${SEG_SRC_COMMON}
+    src/k-means-original.c
+)
+
 
 set(SEG_SRC_SIMD
     ${SEG_SRC_COMMON}
+    src/k-means-common.c
     src/k-means-simd.c
     src/k-means-distance-simd.c
 )
 set(SEG_SRC
     ${SEG_SRC_COMMON}
+    src/k-means-common.c
     src/k-means.c
 )
 
 set(SEG_TEST_SIMD_SRC
     src/k-means-distance-simd.c
+    src/k-means-common.c
     src/test-simd.c
 )
 
@@ -33,9 +40,13 @@ include_directories(
     include/
 )
 
+add_executable(segmentation_original ${SEG_SRC_ORIGINAL})
+target_link_libraries(segmentation_original m)
+
 add_executable(segmentation ${SEG_SRC})
-add_executable(segmentation_simd ${SEG_SRC_SIMD})
 target_link_libraries(segmentation m)
+
+add_executable(segmentation_simd ${SEG_SRC_SIMD})
 target_link_libraries(segmentation_simd m)
 target_compile_options(segmentation_simd PRIVATE -mavx)
 
