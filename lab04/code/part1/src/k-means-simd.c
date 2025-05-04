@@ -1,6 +1,7 @@
 #include "k-means.h"
 #include <emmintrin.h>
 #include <math.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,11 +24,12 @@ void kmeans_pp(struct img_t *image, int num_clusters, uint8_t *centers)
 						 sizeof(*distances));
 
 	/* Treat 4 pixels at the same time */
-	uint8_t *first_center = calloc(image->components * 4, sizeof(uint8_t));
+	uint8_t *current_center =
+		calloc(image->components * 4, sizeof(uint8_t));
 
 	/* Copy the first center 4 times */
 	for (size_t i = 0; i < 4; ++i) {
-		memcpy(first_center + 4 * i, centers, 3 * sizeof(uint8_t));
+		memcpy(current_center + 4 * i, centers, 3 * sizeof(uint8_t));
 	}
 
 	const size_t image_size = image->width * image->height;
@@ -36,12 +38,12 @@ void kmeans_pp(struct img_t *image, int num_clusters, uint8_t *centers)
 
 	for (i = 0; i < n; i += 4) {
 		uint8_t *src = image->data + i * image->components;
-		distance_simd(src, first_center, distances + i);
+		distance_simd(src, current_center, distances + i);
 	}
 
 	for (; i < image_size; ++i) {
 		uint8_t *src = image->data + i * image->components;
-		distances[i] = distance_single_pixel(src, first_center);
+		distances[i] = distance_single_pixel(src, current_center);
 	}
 
 	// Loop to find remaining cluster centers
@@ -74,18 +76,38 @@ void kmeans_pp(struct img_t *image, int num_clusters, uint8_t *centers)
 		// Update distances based on the new center
 		uint8_t *new_center = centers + i * image->components;
 
-		for (size_t j = 0; j < image->width * image->height; j++) {
-			uint8_t *src = image->data + j * image->components;
+		/* Copy the center 4 times */
+		for (size_t j = 0; j < 4; ++j) {
+			memcpy(current_center + 4 * j, new_center,
+			       4 * sizeof(uint8_t));
+		}
 
-			float dist = distance_single_pixel(src, new_center);
+		uint32_t tmp_distances[4];
+		size_t j;
+		for (j = 0; j < n; j += 4) {
+			const uint8_t *src =
+				image->data + j * image->components;
+			distance_simd(src, current_center, tmp_distances);
 
-			if (dist < distances[j]) {
-				distances[j] = dist;
+			for (size_t k = 0; k < 4; ++k) {
+				if (tmp_distances[k] < distances[j + k]) {
+					distances[j + k] = tmp_distances[k];
+				}
+			}
+		}
+		for (; j < image_size; ++j) {
+			const uint8_t *src =
+				image->data + j * image->components;
+			const uint32_t distance =
+				distance_single_pixel(src, current_center);
+
+			if (distance < distances[j]) {
+				distances[j] = distance;
 			}
 		}
 	}
+	free(current_center);
 
-	free(first_center);
 	free(distances);
 }
 
@@ -102,25 +124,47 @@ void kmeans(struct img_t *image, int num_clusters)
 	int *assignments =
 		(int *)malloc(image->width * image->height * sizeof(int));
 
+	uint8_t *current_pixel = calloc(image->components * 4, sizeof(uint8_t));
+
 	// Assign each pixel in the image to its nearest cluster.
 	for (int i = 0; i < image->width * image->height; ++i) {
-		float min_dist = INFINITY;
+		uint32_t min_dist = UINT32_MAX;
 		int best_cluster = -1;
 
-		uint8_t *src = image->data + i * image->components;
+		uint8_t *pixel = image->data + i * image->components;
 
-		for (int c = 0; c < num_clusters; c++) {
+		for (size_t i = 0; i < 4; ++i) {
+			memcpy(current_pixel + 4 * i, pixel,
+			       3 * sizeof(uint8_t));
+		}
+
+		const size_t n = num_clusters - (num_clusters % 4);
+		uint32_t tmp_distances[4];
+		size_t c;
+
+		for (c = 0; c < n; c += 4) {
+			uint8_t *center = centers + c * image->components;
+
+			distance_simd(current_pixel, center, tmp_distances);
+
+			for (size_t k = 0; k < 4; ++k) {
+				if (tmp_distances[k] < min_dist) {
+					min_dist = tmp_distances[k];
+					best_cluster = c + k;
+				}
+			}
+		}
+		for (c = 0; c < num_clusters; ++c) {
 			uint8_t *dest = centers + c * image->components;
 
-			float dist = distance_single_pixel(src, dest);
+			uint32_t dist = distance_single_pixel(pixel, dest);
 
 			if (dist < min_dist) {
 				min_dist = dist;
 				best_cluster = c;
 			}
-
-			assignments[i] = best_cluster;
 		}
+		assignments[i] = best_cluster;
 	}
 
 	ClusterData *cluster_data =

@@ -4,24 +4,26 @@
 // This function will calculate the euclidean distance between two pixels.
 // Instead of using coordinates, we use the RGB value for evaluating distance.
 //
-void distance_simd(uint8_t *p1, uint8_t *p2, uint32_t *result)
+void distance_simd(const uint8_t *p1, const uint8_t *p2, uint32_t *result)
 {
 	__m128i v1 = _mm_loadu_si128((__m128i const *)p1);
 	__m128i v2 = _mm_loadu_si128((__m128i const *)p2);
 
+#if 0 /* Assume that the alpha channel is always set to zero so no need to mask */
 	const __m128i mask = _mm_set_epi8(0x00, 0xFF, 0xFF, 0xFF, 0x00, 0xFF,
 					  0xFF, 0xFF, 0x00, 0xFF, 0xFF, 0xFF,
 					  0x00, 0xFF, 0xFF, 0xFF);
 
-	__m128i masked_v1 = _mm_and_si128(v1, mask);
-	__m128i masked_v2 = _mm_and_si128(v2, mask);
+	v1 = _mm_and_si128(v1, mask);
+	v2 = _mm_and_si128(v2, mask);
+#endif
 
 	__m128i zero = _mm_setzero_si128();
 
-	__m128i v1lo = _mm_unpacklo_epi8(masked_v1, zero);
-	__m128i v1hi = _mm_unpackhi_epi8(masked_v1, zero);
-	__m128i v2lo = _mm_unpacklo_epi8(masked_v2, zero);
-	__m128i v2hi = _mm_unpackhi_epi8(masked_v2, zero);
+	__m128i v1lo = _mm_unpacklo_epi8(v1, zero);
+	__m128i v1hi = _mm_unpackhi_epi8(v1, zero);
+	__m128i v2lo = _mm_unpacklo_epi8(v2, zero);
+	__m128i v2hi = _mm_unpackhi_epi8(v2, zero);
 
 	__m128i diff_lo = _mm_sub_epi16(v1lo, v2lo);
 	__m128i diff_hi = _mm_sub_epi16(v1hi, v2hi);
