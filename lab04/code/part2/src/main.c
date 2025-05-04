@@ -10,19 +10,10 @@
 int main(int argc, char **argv)
 {
 	struct img_t *image;
-	int nb_cluster = 0;
-	printf("%d\n", argc);
-	if (argc < 4) {
-		fprintf(stderr,
-			"Usage : %s <img_src.png> <nb_clusters> <img_dest.png>\n",
+	if (argc < 3) {
+		fprintf(stderr, "Usage : %s <img_src.png>  <img_dest.png>\n",
 			argv[0]);
 		return EXIT_FAILURE;
-	}
-
-	nb_cluster = atoi(argv[2]);
-	if (nb_cluster <= 0) {
-		printf("The number of clusters should be greater than 0\n");
-		return 1;
 	}
 
 	image = load_image(argv[1]);
@@ -77,7 +68,7 @@ int main(int argc, char **argv)
 		free(padded_image.data);
 	}
 
-	save_image(argv[3], image);
+	save_image(argv[2], image);
 	free_image(image);
 
 	printf("Programm ended successfully\n\n");
