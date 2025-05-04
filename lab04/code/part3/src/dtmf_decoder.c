@@ -1,5 +1,5 @@
 #include "dtmf_private.h"
-
+#include <immintrin.h>
 #include "buffer.h"
 #include "utils.h"
 #include "fft.h"
@@ -248,11 +248,26 @@ static float get_max_amplitude(const float *buffer, size_t len)
 
 static bool is_silence(const float *buffer, size_t len, float target)
 {
-	for (size_t i = 0; i < len; ++i) {
+	__m256 target_vec = _mm256_set1_ps(target);
+
+	size_t i = 0;
+	for (; i + 7 < len; i += 8) {
+		__m256 data_vec = _mm256_loadu_ps(&buffer[i]);
+		__m256 cmp_vec =
+			_mm256_cmp_ps(data_vec, target_vec, _CMP_GE_OS);
+		/* If any value is >= target, cmp_vec will be all zeros */
+		if (_mm256_testz_si256(_mm256_castps_si256(cmp_vec),
+				       _mm256_castps_si256(cmp_vec))) {
+			return false;
+		}
+	}
+
+	for (; i < len; ++i) {
 		if (buffer[i] >= target) {
 			return false;
 		}
 	}
+
 	return true;
 }
 
