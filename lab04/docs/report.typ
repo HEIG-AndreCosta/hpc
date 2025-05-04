@@ -268,3 +268,81 @@ L'analyse des résultats montre une amélioration notable des performances avec 
 - Accélération : environ 12.3%
 
 L'écart-type plus faible pour l'implémentation SIMD (0.013 s contre 0.101 s) indique également une plus grande stabilité des performances.
+
+= Optimisation SIMD sur votre propre code
+
+Lors du laboratoire précedent, nous avions discuté de vectoriser la fonction `is_silence`.
+Le compilateur n'étant pas capable de le faire.
+
+Le reste du code est déjà très optimisé, nous allons découvrir si cette fonction, qui est appellée pour chaque fenêtre lors du décodage peut encore améliorer la performance.
+
+```c
+static bool is_silence(const float *buffer, size_t len, float target)
+{
+	for (size_t i = 0; i < len; ++i) {
+		if (buffer[i] >= target) {
+			return false;
+		}
+	}
+	return true;
+}
+```
+
+```c
+static bool is_silence(const float *buffer, size_t len, float target)
+{
+	__m256 target_vec = _mm256_set1_ps(target);
+
+	size_t i = 0;
+	for (; i + 7 < len; i += 8) {
+		__m256 data_vec = _mm256_loadu_ps(&buffer[i]);
+		__m256 cmp_vec =
+			_mm256_cmp_ps(data_vec, target_vec, _CMP_GE_OS);
+		/* If any value is >= target, cmp_vec will be all zeros */
+		if (_mm256_testz_si256(_mm256_castps_si256(cmp_vec),
+				       _mm256_castps_si256(cmp_vec))) {
+			return false;
+		}
+	}
+
+	for (; i < len; ++i) {
+		if (buffer[i] >= target) {
+			return false;
+		}
+	}
+
+	return true;
+}
+```
+
+
+Ici, nous ne traitons plus de pixel d'images mais des samples de son, le fonctionnement reste le même par contre.
+Avec une taille `float` de 4 octets et des vecteurs SIMD de 32 octets, nous arrivons à traiter directement 8 samples de notre buffer.
+
+Pour cela, nous pouvons enregistrer la valeur `target` dans un vecteur. Par la suite, dans cet algorithme nous allons:
+
+1. Charger 8 octets
+2. Comparer ces 8 avec le vecteur de départ d'un seul coup 
+  - Avec l'opération `_mm256_cmp_ps` et le flag `_CMP_GE_OS`, le vecteur résultant contiendra des `1` si la valeur flottante correspondante de data_vec est plus grande ou égale que target_vec
+3. Finalement, pour savoir si une des valeurs étaitt effectivement plus grande, on peut effectuer une opération `testz` qui effectue un ET logique entre deux vecteurs
+  - Ici, en passant deux fois cmp_vec, on aurait soit `0` si tout était à `0` auparavant ou `1` si une des valeurs était effectivement plus grande ou égale
+
+== Résultats
+
+Pour référence, les résultats précedents de notre programme lors du laboratoire 1:
+
+```bash
+> hyperfine "./build/dtmf_encdec decode audio/crashing_is_not_allowed_\\\!.wav" --shell=none --warmup 10
+Benchmark 1: ./build/dtmf_encdec decode audio/crashing_is_not_allowed_\!.wav
+  Time (mean ± σ):     364.9 ms ±   7.8 ms    [User: 348.0 ms, System: 15.3 ms]
+  Range (min … max):   357.3 ms … 379.7 ms    10 runs
+ 
+> hyperfine "./build/dtmf_encdec decode_time_domain audio/crashing_is_not_allowed_\\\!.wav" --shell=none --warmup 10
+Benchmark 1: ./build/dtmf_encdec decode_time_domain audio/crashing_is_not_allowed_\!.wav
+  Time (mean ± σ):      28.9 ms ±   0.3 ms    [User: 14.0 ms, System: 14.7 ms]
+  Range (min … max):    28.1 ms …  29.7 ms    102 runs
+```
+
+Et avec ce changement:
+
+
