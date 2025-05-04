@@ -10,8 +10,8 @@
 typedef char *(*dtmf_decode_fn)(dtmf_t *);
 void print_usage(const char *prog)
 {
-	printf("Usage :\n  %s encode input.txt output.wav\n  %s decode input.wav\n",
-	       prog, prog);
+	printf("Usage :\n  %s encode input.txt output.wav\n  %s decode input.wav\n %s decode_time_domain input.wav\n",
+	       prog, prog, prog);
 }
 
 int decode(const char *wave_file, dtmf_decode_fn decode_fn)
