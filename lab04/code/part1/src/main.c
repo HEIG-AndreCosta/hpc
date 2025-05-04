@@ -27,7 +27,6 @@ int main(int argc, char **argv)
 	image = load_image(argv[1]);
 
 	printf("Image loaded!\n");
-	printf("Image Components: %d\n", image->components);
 
 	struct img_t padded_image;
 	padded_image.width = image->width;
@@ -57,7 +56,6 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	printf("Running kmeans..\n");
 	kmeans(&padded_image, nb_cluster);
 
 	if (padded) {
