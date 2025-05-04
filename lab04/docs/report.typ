@@ -269,13 +269,15 @@ L'analyse des résultats montre une amélioration notable des performances avec 
 
 L'écart-type plus faible pour l'implémentation SIMD (0.013 s contre 0.101 s) indique également une plus grande stabilité des performances.
 
+#pagebreak()
+
 = Optimisation SIMD sur votre propre code
 
-Lors du laboratoire précedent, nous avions discuté de vectoriser la fonction `is_silence`.
-Le compilateur n'étant pas capable de le faire.
+Lors du laboratoire précédent, nous avons discuté de la vectorisation de la fonction is_silence, car le compilateur ne parvient pas à le faire automatiquement.
+Bien que cela puisse sembler anodin, cette fonction est cruciale dans notre algorithme. En effet, la vérification du silence est réalisée pour chaque fenêtre que nous tentons de décoder,
+tant pour l'algorithme de décodage en domaine fréquentiel que pour celui dans le domaine temporel.
 
-Le reste du code est déjà très optimisé, nous allons découvrir si cette fonction, qui est appellée pour chaque fenêtre lors du décodage peut encore améliorer la performance.
-
+Voici l'implémentation initiale de la fonction `is_silence` :
 ```c
 static bool is_silence(const float *buffer, size_t len, float target)
 {
@@ -287,6 +289,11 @@ static bool is_silence(const float *buffer, size_t len, float target)
 	return true;
 }
 ```
+
+Nous avons ensuite appliqué une optimisation SIMD pour accélérer cette fonction.
+Grâce à cette optimisation, nous pouvons charger plusieurs échantillons (8 au total) et les traiter simultanément à l'aide des instructions SIMD.
+
+Voici l'implémentation SIMD de la fonction `is_silence` :
 
 ```c
 static bool is_silence(const float *buffer, size_t len, float target)
@@ -315,29 +322,25 @@ static bool is_silence(const float *buffer, size_t len, float target)
 }
 ```
 
+Dans cette version optimisée, nous procédons de la manière suivante :
 
-Ici, nous ne traitons plus de pixel d'images mais des samples de son, le fonctionnement reste le même par contre.
-Avec une taille `float` de 4 octets et des vecteurs SIMD de 32 octets, nous arrivons à traiter directement 8 samples de notre buffer.
-
-Pour cela, nous pouvons enregistrer la valeur `target` dans un vecteur. Par la suite, dans cet algorithme nous allons:
-
-1. Charger 8 octets
-2. Comparer ces 8 avec le vecteur de départ d'un seul coup 
-  - Avec l'opération `_mm256_cmp_ps` et le flag `_CMP_GE_OS`, le vecteur résultant contiendra des `1` si la valeur flottante correspondante de data_vec est plus grande ou égale que target_vec
-3. Finalement, pour savoir si une des valeurs étaitt effectivement plus grande, on peut effectuer une opération `testz` qui effectue un ET logique entre deux vecteurs
-  - Ici, en passant deux fois cmp_vec, on aurait soit `0` si tout était à `0` auparavant ou `1` si une des valeurs était effectivement plus grande ou égale
+1. Charger 8 échantillons du buffer.
+2. Comparer ces 8 échantillons avec la valeur cible (en utilisant `_mm256_cmp_ps` et l'opération `_CMP_GE_OS`).
+3. Vérifier si l'un des échantillons est supérieur ou égal à la valeur cible en effectuant une opération `testz` sur le vecteur de comparaison (cmp_vec).
 
 == Résultats
 
-Pour référence, les résultats précedents de notre programme lors du laboratoire 1:
+Voici les résultats des tests de performance pour l'exécution de notre programme avant et après l'optimisation SIMD :
+
+=== Avant optimisation SIMD - Laboratoire 1
 
 ```bash
-> hyperfine "./build/dtmf_encdec decode audio/crashing_is_not_allowed_\\\!.wav" --shell=none --warmup 10
+> hyperfine --warmup 10 "./build/dtmf_encdec decode audio/crashing_is_not_allowed_\\\!.wav"
 Benchmark 1: ./build/dtmf_encdec decode audio/crashing_is_not_allowed_\!.wav
   Time (mean ± σ):     364.9 ms ±   7.8 ms    [User: 348.0 ms, System: 15.3 ms]
   Range (min … max):   357.3 ms … 379.7 ms    10 runs
  
-> hyperfine "./build/dtmf_encdec decode_time_domain audio/crashing_is_not_allowed_\\\!.wav" --shell=none --warmup 10
+> hyperfine --warmup 10 "./build/dtmf_encdec decode_time_domain audio/crashing_is_not_allowed_\\\!.wav"
 Benchmark 1: ./build/dtmf_encdec decode_time_domain audio/crashing_is_not_allowed_\!.wav
   Time (mean ± σ):      28.9 ms ±   0.3 ms    [User: 14.0 ms, System: 14.7 ms]
   Range (min … max):    28.1 ms …  29.7 ms    102 runs
@@ -345,4 +348,41 @@ Benchmark 1: ./build/dtmf_encdec decode_time_domain audio/crashing_is_not_allowe
 
 Et avec ce changement:
 
+=== Après optimisation SIMD - Laboratoire 4
 
+```bash
+> hyperfine --warmup 10 "./code/part3/build/dtmf_encdec decode audio/crashing_is_not_allowed_\\\!.wav"
+Benchmark 1: ./code/part3/build/dtmf_encdec decode audio/crashing_is_not_allowed_\!.wav
+  Time (mean ± σ):     352.4 ms ±   5.7 ms    [User: 334.6 ms, System: 15.8 ms]
+  Range (min … max):   347.1 ms … 364.4 ms    10 runs
+> hyperfine --warmup 10 "./code/part3/build/dtmf_encdec decode_time_domain audio/crashing_is_not_allowed_\\\!.wav"
+Benchmark 1: ./code/part3/build/dtmf_encdec decode_time_domain audio/crashing_is_not_allowed_\!.wav
+  Time (mean ± σ):      21.1 ms ±   0.8 ms    [User: 4.5 ms, System: 16.4 ms]
+  Range (min … max):    19.3 ms …  23.5 ms    143 runs
+```
+
+L'analyse des résultats montre une amélioration significative des performances après l'implémentation de la fonction is_silence optimisée avec SIMD :
+
+- Temps moyen original : 364.9ms (décodage domaine fréquentiel) et 28.9ms (décodage domaine temporel)
+- Temps moyen avec SIMD : 352.4ms (décodage domaine fréquentiel) et 21.1ms (décodage domaine temporel)
+- Acceleration pour l'algorithme de décodage domaine fréquentiel : environ 3.43%
+- Acceleration pour l'algorithme de décodage temporel: environ 27.1%
+
+Cela démontre que l'optimisation SIMD a un impact significatif sur les performances, en particulier étant donné que, comme mentionné précédemment,
+cette fonction est essentielle pour les deux algorithmes.
+
+#pagebreak()
+
+= Conclusion
+
+Les optimisations apportées ont permis d'améliorer significativement les performances du système, tant en termes de rapidité que de précision.
+Le calcul de la distance a été accéléré grâce à la suppression de la racine carrée et à l'utilisation d'instructions SIMD, permettant de traiter plusieurs pixels simultanément.
+Cette modification a conduit à une réduction du temps de calcul de près de 70% par rapport à l'implémentation initiale.
+
+L'algorithme de conversion en niveaux de gris, également optimisé avec SIMD, a vu sa vitesse multipliée par trois, grâce à l'utilisation des instructions AVX pour traiter jusqu'à huit pixels en parallèle.
+Cette approche a permis de réduire considérablement le temps de traitement tout en préservant la précision des résultats.
+
+Enfin, la fonction is_silence, utilisée pour le décodage DTMF, a également bénéficié de ces optimisations. En exploitant les registres SIMD, nous avons pu traiter plusieurs échantillons simultanément,
+réduisant ainsi le temps de calcul de manière notable, avec des gains de 27% pour le décodage temporel et de 3.43% pour le décodage fréquentiel.
+
+Ces améliorations, combinées, ont permis d’atteindre une accélération des trois applications, tout en conservant la qualité et la précision des traitements.
