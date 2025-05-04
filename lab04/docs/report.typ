@@ -155,3 +155,116 @@ Cette optimisation n’est pas uniquement due à l’utilisation de SIMD. Elle e
 L'ensemble de ces changements contribue à un gain de performance global très significatif.
 
 
+= Implémentation SIMD libre d'un algorithme
+
+Pour cette partie, j'ai choisi d'implémenter un algorithme qui convertit une image en niveaux de gris (grayscale). Cet algorithme est largement utilisé dans le traitement d'images et constitue souvent une étape préliminaire pour d'autres opérations de traitement plus complexes.
+Principe de l'algorithme
+
+L'algorithme de conversion en niveaux de gris repose sur une formule de luminance perceptuelle qui tient compte de la sensibilité de l'œil humain aux différentes composantes de couleur. La formule standard utilisée est :
+
+$R_"out" = G_"out" = B_"out" = R_"in" * 0.299 + G_"in" * 0.587 + B_"in" * 0.114$
+$A_"out" = A_"in"$
+
+Cette formule est appliquée à chaque pixel de l'image, où :
+
+- $R_"in"$, $G_"in"$, $B_"in"$ et $A_"in"$ représentent les composantes rouge, verte, bleue et alpha du pixel d'entrée
+- $ R_"out"$, $G_"out"$, $B_"out"$ et $A_"out"$ représentent les composantes du pixel de sortie
+- La valeur alpha (transparence) reste inchangée
+
+== Méthode séquentielle
+
+L'implémentation séquentielle de cet algorithme est relativement simple. Pour chaque pixel de l'image, il faut:
+
+1. Extraire les composantes R, G, B du pixel
+2. Calculer la valeur de gris en appliquant la formule de luminance
+3. Remplacer les composantes R, G, B originales par cette valeur de gris
+4. Conserver la valeur alpha inchangée
+
+
+== Méthode SIMD
+
+
+L'implémentation SIMD utilise les instructions AVX (Advanced Vector Extensions) pour traiter plusieurs pixels en parallèle, améliorant ainsi significativement les performances. Avec AVX, nous pouvons manipuler des vecteurs de 256 bits, ce qui nous permet de traiter 8 pixels simultanément (en considérant des valeurs de 32 bits par pixel).
+
+La méthode SIMD comporte les étapes suivantes :
+
+1. Chargement de 8 pixels à la fois dans des registres vectoriels
+2. Extraction et regroupement des composantes R, G et B dans des registres séparés
+3. Conversion des valeurs en nombres flottants pour les calculs
+4. Application de la formule de luminance en parallèle sur les 8 pixels
+5. Conversion des résultats en entiers 8 bits et réassemblage des pixels
+6. Écriture des résultats dans le buffer
+
+== Programme de test
+Pour évaluer et comparer les deux implémentations, j'ai développé un programme de test qui :
+
+1. Génère une image test avec des pixels aléatoires en format RGBA
+2. Applique l'algorithme de conversion en niveaux de gris en utilisant les deux méthodes
+3. Compare les résultats pour vérifier leur équivalence
+4. Mesure les temps d'exécution pour évaluer les performances
+
+Le programme effectue plusieurs exécutions pour obtenir des moyennes fiables et calcule le facteur d'accélération apporté par l'implémentation SIMD. Il vérifie également que les deux méthodes produisent des résultats équivalents, en tenant compte d'une légère tolérance due aux erreurs d'arrondi des calculs en virgule flottante.
+
+
+=== Résultats programme de test
+
+```bash
+Testing grayscale conversion on 1920x1080 image (10 runs)
+
+Results:
+Sequential implementation: 5.623 ms
+AVX implementation: 2.081 ms
+Speed improvement: 2.70x
+Pixel differences: 0 (0.000000%)
+Test PASSED: Implementations produce equivalent results
+```
+
+Ces résultats sont particulièrement significatifs car ils mesurent uniquement le temps de calcul de la conversion en niveaux de gris, sans inclure les opérations de chargement/enregistrement d'image :
+
+- Temps moyen de l'implémentation séquentielle : 5.623 ms
+- Temps moyen de l'implémentation SIMD : 2.081 ms
+- Accélération : 2.70x (170% d'amélioration)
+
+Ces résultats confirment le potentiel des instructions SIMD pour accélérer considérablement le traitement d'image, atteignant presque une accélération de 3x sur cet algorithme.
+
+== Programme principale
+
+Le programme principal offre deux application CLI simples pour convertir des images réelles en niveaux de gris.
+
+L'architecture du projet génère deux exécutables distincts :
+
+- `grayscale` : utilisant l'implémentation séquentielle
+- `grayscale_simd` : utilisant l'implémentation AVX
+
+Cette approche permet de comparer facilement les performances des deux méthodes sur les mêmes images d'entrée.
+
+Le flux de traitement est le suivant :
+
+1. Chargement de l'image d'entrée spécifiée
+2. Conversion en niveaux de gris avec la méthode sélectionnée
+3. Enregistrement de l'image résultante dans le fichier de sortie spécifié
+
+=== Résultat programme principale
+
+Pour évaluer les performances, j'ai utilisé l'utilitaire hyperfine qui permet d'effectuer des benchmarks précis avec préchauffage. Les tests ont été réalisés sur une image 4K :
+
+```bash
+> hyperfine --warmup 10 './code/part2/build/grayscale ./docs/media/pexels-christian-heitz-285904-842711.png output.png'
+Benchmark 1: ./code/part2/build/grayscale ./docs/media/pexels-christian-heitz-285904-842711.png output.png
+  Time (mean ± σ):      1.689 s ±  0.101 s    [User: 1.496 s, System: 0.166 s]
+  Range (min … max):    1.594 s …  1.899 s    10 runs
+
+> hyperfine --warmup 10 './code/part2/build/grayscale_simd ./docs/media/pexels-christian-heitz-285904-842711.png output_simd.png'
+Benchmark 1: ./code/part2/build/grayscale_simd ./docs/media/pexels-christian-heitz-285904-842711.png output_simd.png
+  Time (mean ± σ):      1.504 s ±  0.013 s    [User: 1.341 s, System: 0.148 s]
+  Range (min … max):    1.492 s …  1.524 s    10 runs
+ 
+```
+
+L'analyse des résultats montre une amélioration notable des performances avec l'implémentation SIMD :
+
+- Temps moyen de l'implémentation séquentielle : 1.689 s
+- Temps moyen de l'implémentation SIMD : 1.504 s
+- Accélération : environ 12.3%
+
+L'écart-type plus faible pour l'implémentation SIMD (0.013 s contre 0.101 s) indique également une plus grande stabilité des performances.
