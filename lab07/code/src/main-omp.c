@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <omp.h>
 
 #define MAX_KMER 100
 
@@ -26,6 +27,10 @@ void init_kmer_table(KmerTable *table)
 	table->count = 0;
 	table->capacity = 1024;
 	table->entries = malloc(sizeof(KmerEntry) * table->capacity);
+}
+void deinit_kmer_table(KmerTable *table)
+{
+	free(table->entries);
 }
 
 void add_kmer(KmerTable *table, const char *kmer, size_t k)
@@ -52,6 +57,39 @@ void add_kmer(KmerTable *table, const char *kmer, size_t k)
 	table->entries[table->count].kmer[k] = '\0';
 	table->entries[table->count].count = 1;
 	table->count++;
+}
+
+void merge_kmer_table(KmerTable *dst, KmerTable *src)
+{
+	for (size_t i = 0; i < src->count; i++) {
+		int found = 0;
+		for (size_t j = 0; j < dst->count; j++) {
+			if (strcmp(dst->entries[j].kmer,
+				   src->entries[i].kmer) == 0) {
+				dst->entries[j].count += src->entries[i].count;
+				found = 1;
+				break;
+			}
+		}
+		if (!found) {
+			if (dst->count >= dst->capacity) {
+				dst->capacity = (dst->capacity == 0) ?
+							1 :
+							dst->capacity * 2;
+				dst->entries = realloc(
+					dst->entries,
+					dst->capacity * sizeof(KmerEntry));
+				if (!dst->entries) {
+					perror("Error reallocating memory for merged table");
+					exit(1);
+				}
+			}
+			strcpy(dst->entries[dst->count].kmer,
+			       src->entries[i].kmer);
+			dst->entries[dst->count].count = src->entries[i].count;
+			dst->count++;
+		}
+	}
 }
 
 int main(int argc, char **argv)
@@ -89,23 +127,36 @@ int main(int argc, char **argv)
 		perror("Error mmaping file");
 		return EXIT_FAILURE;
 	}
+	size_t num_threads = omp_get_max_threads();
+	KmerTable *tables = malloc(num_threads * sizeof(KmerTable));
 
-	KmerTable table;
-	init_kmer_table(&table);
+#pragma omp parallel
+	{
+		size_t id = omp_get_thread_num();
+		KmerTable *table = &tables[id];
+		init_kmer_table(table);
 
-	size_t n = file_size - k;
-	for (size_t i = 0; i <= n; i++) {
-		add_kmer(&table, &addr[i], k);
+#pragma omp for
+		for (long i = 0; i <= file_size - k; i++) {
+			add_kmer(table, &addr[i], k);
+		}
+	}
+	munmap(addr, file_size);
+
+	for (size_t i = 1; i < num_threads; ++i) {
+		merge_kmer_table(&tables[0], &tables[i]);
 	}
 
 	printf("Results:\n");
-	for (int i = 0; i < table.count; i++) {
-		printf("%s: %d\n", table.entries[i].kmer,
-		       table.entries[i].count);
+	for (int i = 0; i < tables[0].count; i++) {
+		printf("%s: %d\n", tables[0].entries[i].kmer,
+		       tables[0].entries[i].count);
+	}
+	for (size_t i = 0; i < num_threads; ++i) {
+		deinit_kmer_table(&tables[i]);
 	}
 
-	munmap(addr, file_size);
-	free(table.entries);
+	free(tables);
 	fclose(file);
 	return 0;
 }

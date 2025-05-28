@@ -1,12 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
 
 #define MAX_KMER 100
 
@@ -17,21 +11,43 @@ typedef struct {
 
 typedef struct {
 	KmerEntry *entries;
-	size_t count;
-	size_t capacity;
+	int count;
+	int capacity;
 } KmerTable;
 
 void init_kmer_table(KmerTable *table)
 {
 	table->count = 0;
-	table->capacity = 1024;
-	table->entries = malloc(sizeof(KmerEntry) * table->capacity);
+	table->capacity = 0;
+	table->entries = NULL;
 }
 
-void add_kmer(KmerTable *table, const char *kmer, size_t k)
+void read_kmer(const char *filename, long position, int k, char *kmer)
+{
+	FILE *f = fopen(filename, "r");
+	if (!f) {
+		perror("Error opening file");
+		exit(1);
+	}
+	fseek(f, position, SEEK_SET);
+	for (int i = 0; i < k; i++) {
+		int c = fgetc(f);
+		if (c == EOF) {
+			fprintf(stderr,
+				"Error: Reached end of file before reading k-mer.\n");
+			fclose(f);
+			exit(1);
+		}
+		kmer[i] = (char)c;
+	}
+	kmer[k] = '\0';
+	fclose(f);
+}
+
+void add_kmer(KmerTable *table, const char *kmer)
 {
 	for (int i = 0; i < table->count; i++) {
-		if (memcmp(table->entries[i].kmer, kmer, k) == 0) {
+		if (strcmp(table->entries[i].kmer, kmer) == 0) {
 			table->entries[i].count++;
 			return;
 		}
@@ -48,8 +64,7 @@ void add_kmer(KmerTable *table, const char *kmer, size_t k)
 		}
 	}
 
-	memcpy(table->entries[table->count].kmer, kmer, k);
-	table->entries[table->count].kmer[k] = '\0';
+	strcpy(table->entries[table->count].kmer, kmer);
 	table->entries[table->count].count = 1;
 	table->count++;
 }
@@ -63,13 +78,10 @@ int main(int argc, char **argv)
 
 	const char *input_file = argv[1];
 	int k = atoi(argv[2]);
+	char kmer[MAX_KMER];
 
 	if (k <= 0) {
 		fprintf(stderr, "Error: k must be a positive integer.\n");
-		return EXIT_FAILURE;
-	}
-	if (k > MAX_KMER) {
-		fprintf(stderr, "Error: k must be < %d.\n", MAX_KMER);
 		return EXIT_FAILURE;
 	}
 
@@ -78,24 +90,17 @@ int main(int argc, char **argv)
 		perror("Error opening file");
 		return EXIT_FAILURE;
 	}
+
 	fseek(file, 0, SEEK_END);
 	long file_size = ftell(file);
-	fseek(file, 0, SEEK_SET);
-
-	char *addr =
-		mmap(NULL, file_size, PROT_READ, MAP_PRIVATE, fileno(file), 0);
-
-	if (addr == MAP_FAILED) {
-		perror("Error mmaping file");
-		return EXIT_FAILURE;
-	}
+	fclose(file);
 
 	KmerTable table;
 	init_kmer_table(&table);
 
-	size_t n = file_size - k;
-	for (size_t i = 0; i <= n; i++) {
-		add_kmer(&table, &addr[i], k);
+	for (long i = 0; i <= file_size - k; i++) {
+		read_kmer(input_file, i, k, kmer);
+		add_kmer(&table, kmer);
 	}
 
 	printf("Results:\n");
@@ -104,8 +109,7 @@ int main(int argc, char **argv)
 		       table.entries[i].count);
 	}
 
-	munmap(addr, file_size);
 	free(table.entries);
-	fclose(file);
+
 	return 0;
 }
