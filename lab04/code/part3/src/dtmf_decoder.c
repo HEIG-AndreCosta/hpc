@@ -256,7 +256,7 @@ static bool is_silence(const float *buffer, size_t len, float target)
 		const __m256 cmp_vec =
 			_mm256_cmp_ps(data_vec, target_vec, _CMP_GE_OS);
 		/* If any value is >= target, cmp_vec will be all zeros */
-		if (_mm256_testz_si256(_mm256_castps_si256(cmp_vec),
+		if (!_mm256_testz_si256(_mm256_castps_si256(cmp_vec),
 				       _mm256_castps_si256(cmp_vec))) {
 			return false;
 		}
